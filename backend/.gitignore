@@ -1,0 +1,6 @@
+# .gitignore file me yeh hona zaroori hai:
+node_modules/
+.env
+.env.local
+dist/
+build/
