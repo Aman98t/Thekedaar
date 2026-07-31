@@ -108,6 +108,8 @@ export default function AdminView({ currentUser }) {
 
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  // ✅ NAYA: Thekedaar ko assign karne ke liye initial password state
+  const [newPassword, setNewPassword] = useState('');
 
   // ==========================================
   // 📢 STATE 2: ANNOUNCEMENTS & SYSTEM BANNER MANAGEMENT
@@ -126,8 +128,11 @@ export default function AdminView({ currentUser }) {
 
   const handleOnboardContractor = async (e) => {
     e.preventDefault();
-    if (!newName.trim() || !newPhone.trim()) return;
-
+    // ✅ NAYA: Password ki validation bhi check kar li
+    if (!newName.trim() || !newPhone.trim() || !newPassword.trim()) {
+      showToast("Please fill Name, Phone, and Password", "error");
+      return;
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
@@ -136,7 +141,7 @@ export default function AdminView({ currentUser }) {
           name: newName.trim(), 
           phone: newPhone.trim(), 
           role: 'thekedaar',
-          password: 'admin' 
+          password: newPassword.trim() // 👈 NAYA: Yahan 'admin' hata kar state laga di 
         }),
       });
 
@@ -146,6 +151,7 @@ export default function AdminView({ currentUser }) {
         showToast(`${newName} successfully database me add ho gaya!`, "success");
         setNewName('');
         setNewPhone('');
+        setNewPassword(''); // 👈 NAYA: Password state bhi clear kardi
         fetchContractors(); 
         fetchGlobalStats();
       } else {
@@ -364,6 +370,24 @@ export default function AdminView({ currentUser }) {
                   required
                 />
               </div>
+              
+{/* ✅ NAYA: Assign Password Input (Matched with Light Theme) */}
+<div>
+  <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">
+    Assign Initial Password
+  </label>
+  <input 
+    type="text" 
+    value={newPassword} 
+    onChange={(e) => setNewPassword(e.target.value)}
+    placeholder="e.g. Thekedaar@123" 
+    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl font-bold text-slate-800 text-xs font-mono focus:outline-none focus:border-slate-950"
+    required 
+  />
+  <p className="text-[9px] text-slate-400 font-medium mt-1 ml-1">
+    Contractor will use this password for their first login.
+  </p>
+</div>
 
               <button type="submit" className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black p-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs">
                 <UserPlus className="w-3.5 h-3.5" /> Register Thekedaar
