@@ -67,10 +67,6 @@ app.use('/api/sites', siteRoutes); // 👈 NAYI LINE
 // 🚀 Server Listen configuration
 // ... (Niche ka server listen wala code)
 
-// 🛡️ Middleware setup
-app.use(cors()); // Allow frontend to communicate with backend
-app.use(express.json()); // Allow server to accept JSON data from frontend
-
 // 🌐 Default Test Route (API Check)
 app.get('/', (req, res) => {
   res.json({ 

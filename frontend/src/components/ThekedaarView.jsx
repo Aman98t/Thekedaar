@@ -326,10 +326,13 @@ function WorkerRoster({ siteId, currentUser }) {
     } catch (err) {}
   };
   
+// ==========================================
+  // 🔑 SUPERIOR-BASED PASSWORD RESET FUNCTION
+  // ==========================================
   const handleResetLabourPassword = async (workerId, workerName) => {
-    const newPass = prompt(`Enter new temporary password for ${workerName}:`, "123");
+    const newPass = prompt(`🚨 PASSWORD RESET\n\nEnter new temporary password for ${workerName}:`, "123");
     if (!newPass) return;
-  
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/users/${workerId}/reset-password`, {
         method: 'PUT',
@@ -339,6 +342,7 @@ function WorkerRoster({ siteId, currentUser }) {
       const data = await res.json();
       if (res.ok) {
         showToast(data.message, "success");
+        fetchMasterLabours(); // ✅ YEH NAYA ADD KIYA: Taki Red Badge turant hat jaye
       } else {
         showToast(data.message || "Failed to reset password", "error");
       }
@@ -378,14 +382,16 @@ function WorkerRoster({ siteId, currentUser }) {
           <div key={w._id} className="py-2.5 flex justify-between items-center group">
             <div className="flex items-center gap-2"><p className="font-bold">{w.name}</p></div>
             <div className="flex items-center gap-2">
-              {/* Labour list ke andar card ya row me is button ko rakh do */}
-<button
-  onClick={() => handleResetLabourPassword(w._id, w.name)}
-  title="Reset Password to 123"
-  className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-2 py-1 rounded-lg text-[10px] font-black"
->
-  🔑 Reset Pass
-</button>
+              {/* ✅ NAYA: Agar majdoor ne password request kiya hai, toh ye lal button dikhao */}
+{w.resetRequested && (
+  <button 
+    onClick={() => handleResetLabourPassword(w._id, w.name)}
+    className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[9px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse ml-2"
+    title="Click to reset password"
+  >
+    🔴 RESET REQ
+  </button>
+)}
 
               <span className="font-black bg-slate-100 px-2 py-1 rounded text-[10px]">₹{w.dailyWage}</span>
               <button onClick={() => handleUnassignWorker(w._id)} className="text-amber-600"><X className="w-3 h-3" /></button>

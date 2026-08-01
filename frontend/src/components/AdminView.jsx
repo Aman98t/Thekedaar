@@ -70,7 +70,8 @@ export default function AdminView({ currentUser }) {
           status: user.status,
           workers: user.workers, 
           activeSites: user.activeSites,
-          wagesProcessed: `₹${user.wagesProcessed.toLocaleString('en-IN')}`
+          wagesProcessed: `₹${user.wagesProcessed.toLocaleString('en-IN')}`,
+          resetRequested: user.resetRequested
         }));
         setContractors(formattedData);
       }
@@ -438,32 +439,39 @@ export default function AdminView({ currentUser }) {
                           </span>
                         </td>
                         
-                        {/* 🛠️ UPDATED: ACTION BUTTONS WITH "RESET PASSWORD" */}
-                        <td className="p-3 text-right space-x-1 whitespace-nowrap">
-                          <button
-                            onClick={() => handleResetContractorPassword(c.id, c.name)}
-                            className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 px-2 py-1 rounded-lg text-[10px] font-black transition cursor-pointer mr-1"
-                            title="Reset Contractor Password"
-                          >
-                            🔑 Reset Password
-                          </button>
-                          
-                          <button 
-                            onClick={() => cycleStatus(c.id, c.status)}
-                            title="Cycle Node State (Suspend/Deactivate)"
-                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all inline-block"
-                          >
-                            {c.status === 'Active' ? <ToggleRight className="w-4 h-4 text-emerald-500" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
-                          </button>
-                          
-                          <button 
-                            onClick={() => handleDeleteContractor(c.id, c.name)}
-                            title="Purge Contractor Profile"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-block"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
+             {/* 🛠️ UPDATED: ACTION BUTTONS WITH "RESET PASSWORD" */}
+<td className="p-3 text-right space-x-1 whitespace-nowrap">
+  
+  {/* ✅ NAYA: Agar reset request true hai, toh Red badge dikhao */}
+  {c.resetRequested && (
+    <button 
+      onClick={() => handleResetContractorPassword(c.id, c.name)}
+      className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[10px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse mr-2"
+      title="Click to reset password"
+    >
+      🔴 RESET REQ
+    </button>
+  )}
+  
+  {/* Existing Suspend/Active Button */}
+  <button 
+    onClick={() => cycleStatus(c.id, c.status)}
+    title="Cycle Node State (Suspend/Deactivate)"
+    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all inline-block"
+  >
+    {c.status === 'Active' ? <ToggleRight className="w-4 h-4 text-emerald-500" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
+  </button>
+  
+  {/* Existing Delete Button */}
+  <button 
+    onClick={() => handleDeleteContractor(c.id, c.name)}
+    title="Purge Contractor Profile"
+    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-block"
+  >
+    <Trash2 className="w-3.5 h-3.5" />
+  </button>
+
+</td>
                       </tr>
                     ))
                   )}

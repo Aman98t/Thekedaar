@@ -54,9 +54,37 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
-  const handleForgotPassword = () => {
-    alert("As per your company workflow, please contact your Admin or Contractor to reset your password instantly from their dashboard roster!");
-  };
+ // Naya aur refined Forgot Password logic
+ const handleForgotPassword = async () => {
+  // Check karo ki user ne phone number box me kuch dala hai ya nahi
+  if (!phone || phone.length !== 10) {
+    showToast("Please enter your 10-digit mobile number first, then click Forgot Password.", "error");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/users/request-password-reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      // SUCCESS: Request chali gayi, ab alert dikhao
+      alert("🚨 REQUEST SENT!\n\nYour password reset request has been sent to your Admin/Contractor's dashboard.\n\nPlease contact them directly to get your new password.");
+      showToast("Request sent successfully!", "success");
+    } else {
+      showToast(data.message || "Failed to send request", "error");
+    }
+  } catch (err) {
+    showToast("Server connection failed.", "error");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">

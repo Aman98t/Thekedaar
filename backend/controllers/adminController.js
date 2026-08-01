@@ -87,6 +87,10 @@ const resetThekedaarPassword = async (req, res) => {
     // Password hash karke save karo
     const salt = await bcrypt.genSalt(10);
     thekedaar.password = await bcrypt.hash(newPassword, salt);
+    
+    // ✅ NAYA: Reset request flag ko false kar do taaki UI se red badge hat jaye
+    thekedaar.resetRequested = false; 
+
     await thekedaar.save();
 
     res.status(200).json({

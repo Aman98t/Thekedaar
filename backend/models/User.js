@@ -43,8 +43,11 @@ const userSchema = new mongoose.Schema({
   thekedaarId: { // 👈 NAYA: Ye batayega ki labour kis thekedaar ka hai
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }
-}, { 
+  },
+  // ✅ NAYA: Password reset request catch karne ke liye
+  resetRequested: { type: Boolean, default: false },
+},
+ { 
   timestamps: true // Ye auto-save karega ki user kab create/update hua (createdAt, updatedAt)
 });
 

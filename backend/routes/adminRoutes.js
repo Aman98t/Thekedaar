@@ -64,7 +64,8 @@ router.get('/contractors-detailed', async (req, res) => {
         status: t.status || 'Active',
         activeSites,
         workers,
-        wagesProcessed
+        wagesProcessed,
+        resetRequested: t.resetRequested
       };
     }));
 
