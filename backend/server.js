@@ -26,16 +26,22 @@ mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('🟢 MongoDB Database Connected Successfully!');
     
+    // Bcrypt setup for default seeds
+    const bcrypt = require('bcrypt');
+    
     const adminExists = await User.findOne({ phone: '9876543210' });
     if (!adminExists) {
-      await User.create({ name: 'Aman98t (Master Admin)', phone: '9876543210', password: 'admin', role: 'admin' });
+      const salt = await bcrypt.genSalt(10);
+      const hashedPass = await bcrypt.hash('admin', salt); // Default password 'admin' ko hash kiya
+      await User.create({ name: 'Aman98t (Master Admin)', phone: '9876543210', password: hashedPass, role: 'admin' });
       console.log('🧑‍💻 Default Admin Injected into Database!');
     }
 
     const contractorExists = await User.findOne({ phone: '9988776655' });
     if (!contractorExists) {
-      // ✅ CHANGED: role thekedaar -> contractor
-      await User.create({ name: 'Sikindra Singh', phone: '9988776655', password: 'admin', role: 'contractor' });
+      const salt = await bcrypt.genSalt(10);
+      const hashedPass = await bcrypt.hash('admin', salt);
+      await User.create({ name: 'Sikindra Singh', phone: '9988776655', password: hashedPass, role: 'contractor' });
       console.log('🏗️ Default Contractor Injected into Database!');
     }
   })

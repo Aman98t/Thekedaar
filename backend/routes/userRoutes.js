@@ -1,6 +1,7 @@
 // Location: backend/routes/userRoutes.js
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcrypt'); // ✅ NAYA: Bcrypt import kiya
 const User = require('../models/User'); 
 const { resetPasswordByAuthority } = require('../controllers/userController'); 
 
@@ -11,20 +12,44 @@ router.post('/register', async (req, res) => {
     const existingUser = await User.findOne({ phone });
     if (existingUser) return res.status(400).json({ message: "Ye phone number pehle se registered hai!" });
     
-    const newUser = new User({ name, phone, password, role, dailyWage, skill });
+    // ✅ NAYA: Password Hash karna
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new User({ name, phone, password: hashedPassword, role, dailyWage, skill });
     await newUser.save();
     res.status(201).json({ message: "User successfully create ho gaya!", user: newUser });
   } catch (error) { res.status(500).json({ message: "Server me error aayi", error: error.message }); }
 });
 
-// 2. LOGIN API
+// 2. LOGIN API (With Smart Auto-Migration)
 router.post('/login', async (req, res) => {
   try {
     const { phone, password } = req.body;
     const user = await User.findOne({ phone });
+    
     if (!user) return res.status(404).json({ message: "System me ye number nahi mila!" });
-    if (password && user.password !== password) return res.status(400).json({ message: "Galat Password PIN!" });
     if (user.status === 'Suspended') return res.status(403).json({ message: "Admin ne ye account block kar diya hai." });
+    
+    let isMatch = false;
+
+    // ✅ NAYA: Smart Logic - Check agar password pehle se hash hai (Bcrypt hamesha $2b$ ya $2a$ se shuru hota hai)
+    if (user.password.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.password);
+    } else {
+      // Puraana Plain Text wala user hai
+      isMatch = (password === user.password);
+      
+      if (isMatch) {
+        // Agar plain text pass sahi hai, toh turant usko hash karke DB me update kar do (Auto-Migrate)
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
+        await user.save();
+        console.log(`🔐 Auto-migrated password for user: ${user.phone}`);
+      }
+    }
+
+    if (!isMatch) return res.status(400).json({ message: "Galat Password PIN!" });
     
     res.status(200).json({ message: "Login Successful!", user });
   } catch (error) { res.status(500).json({ message: "Server me error aayi", error: error.message }); }
@@ -33,7 +58,6 @@ router.post('/login', async (req, res) => {
 // 3. GET ALL CONTRACTORS
 router.get('/contractors', async (req, res) => {
   try {
-    // ✅ CHANGED: role thekedaar -> contractor
     const contractors = await User.find({ role: 'contractor' });
     res.status(200).json(contractors);
   } catch (error) { res.status(500).json({ message: "Server me error aayi", error: error.message }); }
@@ -56,16 +80,18 @@ router.put('/contractor/status/:id', async (req, res) => {
 });
 
 // 6. ADD WORKER API
-// ✅ CHANGED: /labour/register -> /worker/register
 router.post('/worker/register', async (req, res) => {
   try {
-    // ✅ CHANGED: thekedaarId -> contractorId
     const { name, phone, password, dailyWage, skill, contractorId } = req.body;
     const existingUser = await User.findOne({ phone });
     if (existingUser) return res.status(400).json({ message: "Ye phone number pehle se registered hai!" });
     
+    // ✅ NAYA: Password Hash karna
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const newWorker = new User({ 
-      name, phone, password, role: 'worker', dailyWage, skill, contractorId 
+      name, phone, password: hashedPassword, role: 'worker', dailyWage, skill, contractorId 
     });
     await newWorker.save();
     res.status(201).json({ message: "Worker successfully add ho gaya!", user: newWorker });
@@ -73,7 +99,6 @@ router.post('/worker/register', async (req, res) => {
 });
   
 // 7. GET CONTRACTOR'S WORKERS
-// ✅ CHANGED: /labours/:thekedaarId -> /workers/:contractorId
 router.get('/workers/:contractorId', async (req, res) => {
   try {
     const workers = await User.find({ role: 'worker', contractorId: req.params.contractorId });

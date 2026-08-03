@@ -2,9 +2,9 @@
 // 🔑 USER CONTROLLER (Password Reset Logic)
 // Location: backend/controllers/userController.js
 // ==========================================
+const bcrypt = require('bcrypt'); // ✅ NAYA: Bcrypt import kiya
 const User = require('../models/User'); 
 
-// Admin ya Contractor dvara password reset karne ka function
 const resetPasswordByAuthority = async (req, res) => {
   try {
     const { userId } = req.params; 
@@ -14,10 +14,14 @@ const resetPasswordByAuthority = async (req, res) => {
       return res.status(400).json({ success: false, message: "New password is required" });
     }
 
+    // ✅ NAYA: Naye password ko hash kar rahe hain
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { 
-        password: newPassword,         
+        password: hashedPassword, // ✅ NAYA: Hashed password save kiya
         resetRequested: false          
       },
       { new: true } 
