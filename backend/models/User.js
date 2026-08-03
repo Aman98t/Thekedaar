@@ -1,55 +1,28 @@
 // Location: backend/models/User.js
 const mongoose = require('mongoose');
 
-// User ka blueprint (Schema) banate hain
 const userSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
-    required: true 
-  },
-  phone: { 
-    type: String, 
-    required: true, 
-    unique: true // Ek number se ek hi account banega
-  },
-  password: { 
-    type: String,
-    required: true// Labour ke liye 4-digit PIN, ya Thekedaar ka password
-  },
+  name: { type: String, required: true },
+  phone: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
   role: { 
     type: String, 
-    enum: ['admin', 'thekedaar', 'labour'], 
+    // ✅ CHANGED: thekedaar -> contractor, labour -> worker
+    enum: ['admin', 'contractor', 'worker'], 
     required: true 
   },
-  status: { 
-    type: String, 
-    default: 'Active' 
-  },
+  status: { type: String, default: 'Active' },
+  // ✅ CHANGED: thekedaarId aur duplicate fields ko merge karke sirf contractorId rakha
   contractorId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
-    default: null // Labour ke liye yeh thekedaar ki ID hogi
+    default: null 
   },
-  // 👷 LABOUR SPECIFIC FIELDS (Ye sirf labour ke kaam aayenge)
-  dailyWage: { 
-    type: Number 
-  },
-  skill: { 
-    type: String 
-  },
-  assignedSiteId: { 
-    type: String // Kis site par kaam kar raha hai
-  },
-  thekedaarId: { // 👈 NAYA: Ye batayega ki labour kis thekedaar ka hai
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  // ✅ NAYA: Password reset request catch karne ke liye
+  // 👷 WORKER SPECIFIC FIELDS
+  dailyWage: { type: Number },
+  skill: { type: String },
+  assignedSiteId: { type: String },
   resetRequested: { type: Boolean, default: false },
-},
- { 
-  timestamps: true // Ye auto-save karega ki user kab create/update hua (createdAt, updatedAt)
-});
-
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

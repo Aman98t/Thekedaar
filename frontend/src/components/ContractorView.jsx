@@ -1,6 +1,6 @@
 // ==========================================
-// 🧩 THEKEDAAR VIEW - MASTER DASHBOARD (MERN STACK)
-// Location: src/components/ThekedaarView.jsx
+// 🧩 CONTRACTOR VIEW - MASTER DASHBOARD (MERN STACK)
+// Location: src/components/ContractorView.jsx
 // Description: Contractor portal for managing Sites, Roster, Attendance, Advances, Materials, Tasks, and Malik Ledger with PDF/Excel Export.
 // ==========================================
 
@@ -20,27 +20,28 @@ import {
   LayoutGrid, ClipboardList, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, FileText, FileSpreadsheet
 } from 'lucide-react';
 
-export default function ThekedaarView({ currentUser }) {
+export default function ContractorView({ currentUser }) {
   const [activeTab, setActiveTab] = useState('sites');
   const [dbSites, setDbSites] = useState([]);
   const [activeSiteId, setActiveSiteId] = useState('');
   
-  // 👷 NAYI STATE: Labours ki list store karne ke liye
-  const [laboursList, setLaboursList] = useState([]);
+  // 👷 CHANGED: laboursList -> workersList
+  const [workersList, setWorkersList] = useState([]);
 
-  const thekedaarId = currentUser?._id || currentUser?.id;
+  // ✅ CHANGED: thekedaarId -> contractorId
+  const contractorId = currentUser?._id || currentUser?.id;
 
-  // 🔄 Component load hote hi Sites aur Labours dono fetch karo
   useEffect(() => {
-    if (thekedaarId) {
+    if (contractorId) {
       fetchSites();
-      fetchLabours(); // <-- Yahan add kar diya
+      fetchWorkers(); 
     }
-  }, [thekedaarId]);
+  }, [contractorId]);
 
   const fetchSites = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/sites/thekedaar/${thekedaarId}`);
+      // ✅ CHANGED: /thekedaar/ -> /contractor/
+      const res = await fetch(`${API_BASE_URL}/api/sites/contractor/${contractorId}`);
       if (res.ok) {
         const data = await res.json();
         setDbSites(data);
@@ -49,29 +50,27 @@ export default function ThekedaarView({ currentUser }) {
     } catch (err) { console.error("Failed to fetch sites:", err); }
   };
 
-  // 👷 LABOURS FETCH KARENGE BACKEND SE (Only Contractor's Labours)
-  const fetchLabours = async () => {
+  // 👷 WORKERS FETCH KARENGE BACKEND SE (Only Contractor's Workers)
+  const fetchWorkers = async () => {
     const session = JSON.parse(localStorage.getItem('thekedaar_active_session'));
     const token = session?.token || localStorage.getItem('buildhub_token');
     if (!token) return;
 
     try {
-      const res = await fetch('${API_BASE_URL}/api/thekedaar/labours', {
+      // ✅ CHANGED: /api/thekedaar/labours -> /api/contractor/workers
+      const res = await fetch(`${API_BASE_URL}/api/contractor/workers`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setLaboursList(data.labours);
+        setWorkersList(data.workers); // ✅ CHANGED: labours -> workers
       }
-    } catch (err) { console.error("Failed to fetch labours:", err); }
+    } catch (err) { console.error("Failed to fetch workers:", err); }
   };
-
-  // ... baaki tumhara existing code (activeSiteData, Header, Tabs, Select Dropdown) ...
 
   if (!currentUser) return <div className="p-10 text-center font-bold">Loading Profile...</div>;
 
-  // 🎯 Current selected site ka data object nikaalo
   const activeSiteData = dbSites.find(s => s._id === activeSiteId) || null;
 
   return (
@@ -92,8 +91,9 @@ export default function ThekedaarView({ currentUser }) {
         </div>
       </div>
 
-      {/* 🔴 SYSTEM ALERT BANNER: Global maintenance/announcements */}
-      <SystemAlertBanner userRole="thekedaar" userStatus={currentUser.status || 'Active'} />
+      {/* 🔴 SYSTEM ALERT BANNER */}
+      {/* ✅ CHANGED: userRole="contractor" */}
+      <SystemAlertBanner userRole="contractor" userStatus={currentUser.status || 'Active'} />
 
       {/* 🧭 HORIZONTAL NAVIGATION TABS SWITCHER */}
       <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1 overflow-x-auto">
@@ -110,18 +110,19 @@ export default function ThekedaarView({ currentUser }) {
             {tab === 'materials' && <PackageOpen className="w-3.5 h-3.5" />}
             {tab === 'malik' && <Landmark className="w-3.5 h-3.5" />}
             {tab === 'tasks' && <LayoutGrid className="w-3.5 h-3.5" />}
+            
             {tab === 'sites' ? 'Site Manager' : 
              tab === 'tasks' ? 'Tasks & Milestones' :
-              tab === 'roster' ? 'Labours' : 
-              tab === 'attendance' ? 'Attendance' : 
-              tab === 'advances' ? 'Khata (Advance)' :
-              tab === 'materials' ? 'Material & Vendor' : 'Malik Ka Khata'
+             tab === 'roster' ? 'Workers' : 
+             tab === 'attendance' ? 'Attendance' : 
+             tab === 'advances' ? 'Khata (Advance)' :
+             tab === 'materials' ? 'Material & Vendor' : 'Malik Ka Khata'
             }
           </button>
         ))}
       </div>
 
-      {/* 🌍 GLOBAL SITE SWITCHER DROPDOWN (Appears on active tabs) */}
+      {/* 🌍 GLOBAL SITE SWITCHER DROPDOWN */}
       {dbSites.length > 0 && activeTab !== 'sites' && (
         <div className="bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3 shadow-3xs">
           <span className="text-[10px] font-black uppercase text-indigo-800 tracking-wider flex items-center gap-1">
@@ -137,23 +138,19 @@ export default function ThekedaarView({ currentUser }) {
         </div>
       )}
 
-{/* ==========================================
-          TAB PIPELINE ROUTING (Wrapped for Smooth Switching)
-          ========================================== */}
-      {/* 👇 YAHAN SE MIN-HEIGHT WRAPPER SHURU HUA (Glitch Fix) 👇 */}
+      {/* TAB PIPELINE ROUTING */}
       <div className="min-h-[60vh] md:min-h-[600px]">
         
         {activeTab === 'sites' && (
           <SiteManager currentUser={currentUser} dbSites={dbSites} fetchSites={fetchSites} />
         )}
         
-        {/* 👷 EK HI BAR RENDER KARO - Saare zaroori props ke sath */}
         {activeTab === 'roster' && activeSiteId && (
           <WorkerRoster 
             siteId={activeSiteId} 
             currentUser={currentUser} 
-            laboursList={laboursList} 
-            refreshLabours={fetchLabours} 
+            workersList={workersList} 
+            refreshWorkers={fetchWorkers} 
           />
         )}
         
@@ -184,9 +181,7 @@ export default function ThekedaarView({ currentUser }) {
             <button onClick={() => setActiveTab('sites')} className="text-indigo-600 font-black underline cursor-pointer">Go to Site Manager</button>
           </div>
         )}
-
       </div>
-      {/* 👆 YAHAN MIN-HEIGHT WRAPPER KHATAM HUA 👆 */}
 
     </div>
   );
@@ -203,10 +198,11 @@ function SiteManager({ currentUser, dbSites, fetchSites }) {
     e.preventDefault();
     if (!newSiteName.trim()) return;
     try {
-      const res = await fetch('${API_BASE_URL}/api/sites/create', {
+      const res = await fetch(`${API_BASE_URL}/api/sites/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newSiteName.trim(), thekedaarId: currentUser._id || currentUser.id })
+        // ✅ CHANGED: thekedaarId -> contractorId
+        body: JSON.stringify({ name: newSiteName.trim(), contractorId: currentUser._id || currentUser.id })
       });
       if (res.ok) {
         showToast("New Site Created!", "success");
@@ -239,33 +235,38 @@ function SiteManager({ currentUser, dbSites, fetchSites }) {
 // ==========================================
 function WorkerRoster({ siteId, currentUser }) {
   const { showToast } = useToast();
-  const [masterLabours, setMasterLabours] = useState([]);
+  // ✅ CHANGED: masterLabours -> masterWorkers
+  const [masterWorkers, setMasterWorkers] = useState([]);
   const [dbAssignments, setDbAssignments] = useState([]);
+  
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regWage, setRegWage] = useState('');
   const [regSkill, setRegSkill] = useState('Helper');
-  const [assignLabourId, setAssignLabourId] = useState('');
+  const [regPassword, setRegPassword] = useState(''); // ✅ FIXED: Password State Added
+  
+  const [assignWorkerId, setAssignWorkerId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const thekedaarId = currentUser?._id || currentUser?.id;
+  const contractorId = currentUser?._id || currentUser?.id; // ✅ CHANGED
 
   useEffect(() => {
-    if (thekedaarId) { fetchMasterLabours(); fetchAssignments(); }
-  }, [thekedaarId, siteId]);
+    if (contractorId) { fetchMasterWorkers(); fetchAssignments(); }
+  }, [contractorId, siteId]);
 
-  const fetchMasterLabours = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/users/labours/${thekedaarId}`);
-    if (res.ok) setMasterLabours(await res.json());
+  const fetchMasterWorkers = async () => {
+    // ✅ CHANGED: /api/users/labours -> /api/users/workers
+    const res = await fetch(`${API_BASE_URL}/api/users/workers/${contractorId}`);
+    if (res.ok) setMasterWorkers(await res.json());
   };
+
   const fetchAssignments = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/sites/assignments/${thekedaarId}`);
+    const res = await fetch(`${API_BASE_URL}/api/sites/assignments/${contractorId}`);
     if (res.ok) setDbAssignments(await res.json());
   };
 
-  const handleRegisterLabour = async (e) => {
+  const handleRegisterWorker = async (e) => {
     e.preventDefault();
     
-    // Get active session token
     const session = JSON.parse(localStorage.getItem('thekedaar_active_session'));
     const token = session?.token || localStorage.getItem('buildhub_token');
   
@@ -275,18 +276,19 @@ function WorkerRoster({ siteId, currentUser }) {
     }
   
     try {
-      const res = await fetch('${API_BASE_URL}/api/thekedaar/add-labour', {
+      // ✅ CHANGED: /add-labour -> /add-worker
+      const res = await fetch(`${API_BASE_URL}/api/contractor/add-worker`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          name: labourName,       // Apne form state variables ke hisaab se check kar lena
-          phone: labourPhone,
-          password: labourPassword || '123',
-          skill: labourSkill || 'Helper',
-          dailyWage: Number(labourWage) || 0
+          name: regName,       // ✅ FIXED: Matched with correct state
+          phone: regPhone,
+          password: regPassword || '123',
+          skill: regSkill || 'Helper',
+          dailyWage: Number(regWage) || 0
         })
       });
   
@@ -294,30 +296,28 @@ function WorkerRoster({ siteId, currentUser }) {
   
       if (res.ok && data.success) {
         showToast(data.message, "success");
-        // List refresh karne ya modal close karne ka function yahan call kar dena
-        fetchLaboursFromServer?.(); 
+        setRegName(''); setRegPhone(''); setRegWage(''); setRegPassword('');
+        fetchMasterWorkers(); 
       } else {
-        showToast(data.message || "Failed to register labour", "error");
+        showToast(data.message || "Failed to register worker", "error");
       }
     } catch (err) {
-      console.error("Register labour network error:", err);
+      console.error("Register worker network error:", err);
       showToast("Server connection error", "error");
     }
   };
 
-  const handleAssignLabour = async (e) => {
+  const handleAssignWorker = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('${API_BASE_URL}/api/sites/assign', {
+      const res = await fetch(`${API_BASE_URL}/api/sites/assign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workerId: assignLabourId, siteId, thekedaarId })
+        // ✅ CHANGED: thekedaarId -> contractorId
+        body: JSON.stringify({ workerId: assignWorkerId, siteId, contractorId })
       });
-      if (res.ok) { showToast("Assigned!", "success"); setAssignLabourId(''); fetchAssignments(); }
+      if (res.ok) { showToast("Assigned!", "success"); setAssignWorkerId(''); fetchAssignments(); }
     } catch (err) {}
   };
-  // ==========================================
-  // 🔑 SUPERIOR-BASED PASSWORD RESET FUNCTION
-  // ==========================================
   
   const handleUnassignWorker = async (workerId) => {
     try {
@@ -326,23 +326,28 @@ function WorkerRoster({ siteId, currentUser }) {
     } catch (err) {}
   };
   
-// ==========================================
-  // 🔑 SUPERIOR-BASED PASSWORD RESET FUNCTION
-  // ==========================================
-  const handleResetLabourPassword = async (workerId, workerName) => {
+  const handleResetWorkerPassword = async (workerId, workerName) => {
     const newPass = prompt(`🚨 PASSWORD RESET\n\nEnter new temporary password for ${workerName}:`, "123");
     if (!newPass) return;
 
+    const session = JSON.parse(localStorage.getItem('thekedaar_active_session'));
+    const token = session?.token || localStorage.getItem('buildhub_token');
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/users/${workerId}/reset-password`, {
+      // ✅ CHANGED: Endpoint updated in backend, hitting the correct reset password logic
+      const res = await fetch(`${API_BASE_URL}/api/contractor/reset-password`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword: newPass })
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        // ✅ CHANGED: labourId -> workerId
+        body: JSON.stringify({ workerId: workerId, newPassword: newPass })
       });
       const data = await res.json();
       if (res.ok) {
         showToast(data.message, "success");
-        fetchMasterLabours(); // ✅ YEH NAYA ADD KIYA: Taki Red Badge turant hat jaye
+        fetchMasterWorkers(); 
       } else {
         showToast(data.message || "Failed to reset password", "error");
       }
@@ -351,48 +356,52 @@ function WorkerRoster({ siteId, currentUser }) {
       showToast("Server connection error", "error");
     }
   };
+
   const siteWorkerIds = dbAssignments.filter(a => a.siteId?._id === siteId).map(a => a.workerId);
-  const currentSiteLabours = masterLabours.filter(l => siteWorkerIds.includes(l._id)).filter(w => w.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  const unassignedMasterLabours = masterLabours.filter(l => !siteWorkerIds.includes(l._id));
+  const currentSiteWorkers = masterWorkers.filter(l => siteWorkerIds.includes(l._id)).filter(w => w.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const unassignedMasterWorkers = masterWorkers.filter(l => !siteWorkerIds.includes(l._id));
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-      <div><h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-indigo-600" /> Labour Registry</h3></div>
-      <form onSubmit={handleRegisterLabour} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div><h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><Users className="w-4 h-4 text-indigo-600" /> Worker Registry</h3></div>
+      
+      <form onSubmit={handleRegisterWorker} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
           <input type="text" placeholder="Worker Name" value={regName} onChange={(e)=>setRegName(e.target.value)} className="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs" required/>
           <input type="tel" maxLength={10} placeholder="Phone" value={regPhone} onChange={(e)=>setRegPhone(e.target.value.replace(/\D/g, ''))} className="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs" required/>
+          <input type="text" placeholder="Set Password" value={regPassword} onChange={(e)=>setRegPassword(e.target.value)} className="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs" required/>
           <input type="number" placeholder="Daily Wage (₹)" value={regWage} onChange={(e)=>setRegWage(e.target.value)} className="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs" required/>
           <select value={regSkill} onChange={(e)=>setRegSkill(e.target.value)} className="bg-white border border-slate-200 p-2 rounded-lg font-bold text-xs"><option value="Helper">Helper</option><option value="Mason">Mason</option></select>
         </div>
         <button type="submit" className="w-full bg-indigo-600 text-white p-2 rounded-xl font-bold">Register & Deploy</button>
       </form>
-      {unassignedMasterLabours.length > 0 && (
-        <form onSubmit={handleAssignLabour} className="bg-indigo-50/50 p-3 rounded-xl flex gap-2">
-          <select value={assignLabourId} onChange={(e) => setAssignLabourId(e.target.value)} className="flex-1 bg-white border border-slate-200 p-2 rounded-lg font-bold text-slate-800" required>
+
+      {unassignedMasterWorkers.length > 0 && (
+        <form onSubmit={handleAssignWorker} className="bg-indigo-50/50 p-3 rounded-xl flex gap-2">
+          <select value={assignWorkerId} onChange={(e) => setAssignWorkerId(e.target.value)} className="flex-1 bg-white border border-slate-200 p-2 rounded-lg font-bold text-slate-800" required>
             <option value="">Assign existing worker...</option>
-            {unassignedMasterLabours.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
+            {unassignedMasterWorkers.map(l => <option key={l._id} value={l._id}>{l.name}</option>)}
           </select>
           <button type="submit" className="bg-indigo-600 text-white px-3 rounded-lg font-bold">Assign</button>
         </form>
       )}
-      <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border p-2 rounded-lg text-xs" />
+
+      <input type="text" placeholder="Search workers..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 border p-2 rounded-lg text-xs" />
+      
       <div className="divide-y divide-slate-100 max-h-52 overflow-y-auto">
-        {currentSiteLabours.map(w => (
+        {currentSiteWorkers.map(w => (
           <div key={w._id} className="py-2.5 flex justify-between items-center group">
             <div className="flex items-center gap-2"><p className="font-bold">{w.name}</p></div>
             <div className="flex items-center gap-2">
-              {/* ✅ NAYA: Agar majdoor ne password request kiya hai, toh ye lal button dikhao */}
-{w.resetRequested && (
-  <button 
-    onClick={() => handleResetLabourPassword(w._id, w.name)}
-    className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[9px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse ml-2"
-    title="Click to reset password"
-  >
-    🔴 RESET REQ
-  </button>
-)}
-
+              {w.resetRequested && (
+                <button 
+                  onClick={() => handleResetWorkerPassword(w._id, w.name)}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[9px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse ml-2"
+                  title="Click to reset password"
+                >
+                  🔴 RESET REQ
+                </button>
+              )}
               <span className="font-black bg-slate-100 px-2 py-1 rounded text-[10px]">₹{w.dailyWage}</span>
               <button onClick={() => handleUnassignWorker(w._id)} className="text-amber-600"><X className="w-3 h-3" /></button>
             </div>
@@ -404,7 +413,7 @@ function WorkerRoster({ siteId, currentUser }) {
 }
 
 // ==========================================
-// 3. ATTENDANCE SHEET (FIXED ID MATCHING)
+// 3. ATTENDANCE SHEET
 // ==========================================
 function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   const { showToast } = useToast();
@@ -412,21 +421,20 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [siteWorkers, setSiteWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
-  const [advances, setAdvances] = useState([]);
 
   useEffect(() => {
     const fetchSiteWorkers = async () => {
       try {
-        const thekedaarId = currentUser._id || currentUser.id;
-        const [resAssign, resLabours] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/sites/assignments/${thekedaarId}`),
-          fetch(`${API_BASE_URL}/api/users/labours/${thekedaarId}`)
+        const contractorId = currentUser._id || currentUser.id;
+        const [resAssign, resWorkers] = await Promise.all([
+          // ✅ CHANGED: variables
+          fetch(`${API_BASE_URL}/api/sites/assignments/${contractorId}`),
+          fetch(`${API_BASE_URL}/api/users/workers/${contractorId}`)
         ]);
-        if (resAssign.ok && resLabours.ok) {
+        if (resAssign.ok && resWorkers.ok) {
           const assignments = await resAssign.json();
-          const allLabours = await resLabours.json();
+          const allWorkers = await resWorkers.json();
           
-          // 🔍 Robust ID matching (handles ObjectIds, strings, and populated docs)
           const validWorkerIds = assignments
             .filter(a => {
               const assignedSiteId = a.siteId?._id || a.siteId;
@@ -434,11 +442,11 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
             })
             .map(a => String(a.workerId?._id || a.workerId));
 
-          const filteredLabours = allLabours.filter(l => validWorkerIds.includes(String(l._id)));
-          setSiteWorkers(filteredLabours);
+          const filteredWorkers = allWorkers.filter(l => validWorkerIds.includes(String(l._id)));
+          setSiteWorkers(filteredWorkers);
           
-          if (filteredLabours.length > 0) {
-            setSelectedWorkerId(filteredLabours[0]._id);
+          if (filteredWorkers.length > 0) {
+            setSelectedWorkerId(filteredWorkers[0]._id);
           } else {
             setSelectedWorkerId('');
           }
@@ -451,7 +459,6 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   useEffect(() => {
     if (siteId) {
       fetchAttendance();
-      fetchAdvances();
     }
   }, [siteId]);
 
@@ -467,13 +474,6 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
         });
         setAttendance(formatted);
       }
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchAdvances = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/advances/site/${siteId}`);
-      if (res.ok) setAdvances(await res.json());
     } catch (err) { console.error(err); }
   };
 
@@ -566,7 +566,7 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
 }
 
 // ==========================================
-// 4. ADVANCE KHATA TAB (FIXED ID MATCHING)
+// 4. ADVANCE KHATA TAB
 // ==========================================
 function AdvanceLedger({ siteId, currentUser }) {
   const { showToast } = useToast();
@@ -578,14 +578,14 @@ function AdvanceLedger({ siteId, currentUser }) {
   useEffect(() => {
     const fetchSiteWorkers = async () => {
       try {
-        const thekedaarId = currentUser._id || currentUser.id;
-        const [resAssign, resLabours] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/sites/assignments/${thekedaarId}`),
-          fetch(`${API_BASE_URL}/api/users/labours/${thekedaarId}`)
+        const contractorId = currentUser._id || currentUser.id;
+        const [resAssign, resWorkers] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/sites/assignments/${contractorId}`),
+          fetch(`${API_BASE_URL}/api/users/workers/${contractorId}`)
         ]);
-        if (resAssign.ok && resLabours.ok) {
+        if (resAssign.ok && resWorkers.ok) {
           const assignments = await resAssign.json();
-          const allLabours = await resLabours.json();
+          const allWorkers = await resWorkers.json();
           
           const validWorkerIds = assignments
             .filter(a => {
@@ -594,7 +594,7 @@ function AdvanceLedger({ siteId, currentUser }) {
             })
             .map(a => String(a.workerId?._id || a.workerId));
 
-          setSiteWorkers(allLabours.filter(l => validWorkerIds.includes(String(l._id))));
+          setSiteWorkers(allWorkers.filter(l => validWorkerIds.includes(String(l._id))));
         }
       } catch (err) { console.error(err); }
     };
@@ -618,7 +618,7 @@ function AdvanceLedger({ siteId, currentUser }) {
     if (!selectedWorker) return;
 
     try {
-      const res = await fetch('${API_BASE_URL}/api/advances/issue', {
+      const res = await fetch(`${API_BASE_URL}/api/advances/issue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1045,11 +1045,10 @@ function MalikKhata({ siteData, fetchSites }) {
     } catch (err) { showToast("Error saving payment", "error"); }
   };
 
-  // 📊 EXCEL EXPORT FUNCTION (Full Site Accounting Ledger)
+  // 📊 EXCEL EXPORT FUNCTION
   const exportSiteExcelLedger = () => {
     const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Material & Vendor Log
     const materialRows = (siteData.materials || []).map((m, idx) => ({
       'S.No': idx + 1,
       'Date': m.date || 'N/A',
@@ -1062,7 +1061,6 @@ function MalikKhata({ siteData, fetchSites }) {
     const wsMaterial = XLSX.utils.json_to_sheet(materialRows.length ? materialRows : [{ Message: 'No Material Logs' }]);
     XLSX.utils.book_append_sheet(wb, wsMaterial, 'Material Log');
 
-    // Sheet 2: Owner Payments
     const ownerRows = (siteData.ownerPayments || []).map((p, idx) => ({
       'S.No': idx + 1,
       'Date': p.date,
@@ -1083,7 +1081,6 @@ function MalikKhata({ siteData, fetchSites }) {
         <div>
           <h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><Landmark className="w-4 h-4 text-emerald-600" /> Malik Ka Khata (Owner Ledger)</h3>
         </div>
-        {/* 📊 Excel Export Button */}
         <button 
           type="button"
           onClick={exportSiteExcelLedger}

@@ -2,30 +2,25 @@
 // 🔑 USER CONTROLLER (Password Reset Logic)
 // Location: backend/controllers/userController.js
 // ==========================================
-const bcrypt = require('bcrypt');
+const User = require('../models/User'); 
 
-
-// Admin ya Thekedaar dwara password reset karne ka function
-const User = require('../models/User'); // Ensure karna ki User model imported ho
-
+// Admin ya Contractor dvara password reset karne ka function
 const resetPasswordByAuthority = async (req, res) => {
   try {
-    const { userId } = req.params; // Jiska password badalna hai uski ID
-    const { newPassword } = req.body; // Naya password (jaise '123')
+    const { userId } = req.params; 
+    const { newPassword } = req.body; 
 
     if (!newPassword) {
       return res.status(400).json({ success: false, message: "New password is required" });
     }
 
-    // 1. Database me user ka password update karo AUR reset flag hata do
-    // (Bcrypt hata diya hai taaki Login wale plain text comparison se match ho sake)
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { 
-        password: newPassword,         // Naya plain password (e.g. '123')
-        resetRequested: false          // ✅ NAYA: Isse Lal Button (Red Badge) gayab ho jayega
+        password: newPassword,         
+        resetRequested: false          
       },
-      { new: true } // Update hone ke baad naya data wapas de
+      { new: true } 
     );
 
     if (!updatedUser) {

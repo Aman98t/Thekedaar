@@ -1,14 +1,13 @@
 // ==========================================
-// THEKEDAAR ERP - MAIN SERVER ENTRY POINT
+// CONTRACTOR ERP - MAIN SERVER ENTRY POINT
 // ==========================================
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 
 const authRoutes = require('./routes/authRoutes');
-
-const mongoose = require('mongoose'); // 👈 Naya: Mongoose import kiya
-
+const User = require('./models/User'); 
 
 const app = express();
 
@@ -19,68 +18,59 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
-app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRoutes);
-
-const User = require('./models/User'); // 👈 Ye line upar imports me add karni hai (schema ke liye)
 
 // 🔌 MongoDB Connection & Auto-Seed Logic
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
     console.log('🟢 MongoDB Database Connected Successfully!');
     
-    // 🌱 Auto-Create Admin & Thekedaar if Database is empty
     const adminExists = await User.findOne({ phone: '9876543210' });
     if (!adminExists) {
       await User.create({ name: 'Aman98t (Master Admin)', phone: '9876543210', password: 'admin', role: 'admin' });
       console.log('🧑‍💻 Default Admin Injected into Database!');
     }
 
-    const thekedaarExists = await User.findOne({ phone: '9988776655' });
-    if (!thekedaarExists) {
-      await User.create({ name: 'Sikindra Singh', phone: '9988776655', password: 'admin', role: 'thekedaar' });
-      console.log('🏗️ Default Thekedaar Injected into Database!');
+    const contractorExists = await User.findOne({ phone: '9988776655' });
+    if (!contractorExists) {
+      // ✅ CHANGED: role thekedaar -> contractor
+      await User.create({ name: 'Sikindra Singh', phone: '9988776655', password: 'admin', role: 'contractor' });
+      console.log('🏗️ Default Contractor Injected into Database!');
     }
   })
   .catch((err) => console.log('🔴 MongoDB Connection Error: ', err));
-// ... (Baaki ka tumhara route aur listen wala code waisa hi rahega)
 
-
-
-
-/// 🔌 API ROUTES KO SERVER ME LINK KAREIN
+// 🔌 API ROUTES KO SERVER ME LINK KAREIN
 const userRoutes = require('./routes/userRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
-const advanceRoutes = require('./routes/advanceRoutes'); // 👈 NAYI LINE
-const adminRoutes = require('./routes/adminRoutes'); // 👈 NAYI LINE
-const labourRoutes = require('./routes/labourRoutes');
-const siteRoutes = require('./routes/siteRoutes'); // 👈 NAYI LINE
-const thekedaarRoutes = require('./routes/thekedaarRoutes');
-app.use('/api/labour', labourRoutes);
-app.use('/api/thekedaar', thekedaarRoutes);
+const advanceRoutes = require('./routes/advanceRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const siteRoutes = require('./routes/siteRoutes'); 
+// ✅ CHANGED: Route names updated
+const workerRoutes = require('./routes/workerRoutes'); 
+const contractorRoutes = require('./routes/contractorRoutes'); 
+
 app.use('/api/users', userRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/advances', advanceRoutes); // 👈 NAYI LINE
-app.use('/api/admin', adminRoutes); // 👈 NAYI LINE
-app.use('/api/sites', siteRoutes); // 👈 NAYI LINE
-// 🚀 Server Listen configuration
-// ... (Niche ka server listen wala code)
+app.use('/api/advances', advanceRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/sites', siteRoutes);
+// ✅ CHANGED: Endpoints updated
+app.use('/api/worker', workerRoutes);
+app.use('/api/contractor', contractorRoutes);
 
 // 🌐 Default Test Route (API Check)
 app.get('/', (req, res) => {
   res.json({ 
-    message: "Welcome to Thekedaar ERP API! 🚀", 
+    message: "Welcome to Contractor ERP API! 🚀", 
     status: "Server is running smoothly." 
   });
 });
 
-// 🚀 Server Listen configuration
 const PORT = process.env.PORT || 5000;
-
 app.listen(PORT, () => {
   console.log(`\n===========================================`);
   console.log(`🚀 Server is LIVE and running on PORT: ${PORT}`);
-  console.log(`🔗 Test URL: http://localhost:${PORT}`);
   console.log(`===========================================\n`);
 });

@@ -12,7 +12,8 @@ const assignmentSchema = new mongoose.Schema({
     ref: 'Site', 
     required: true 
   },
-  thekedaarId: { 
+  // ✅ CHANGED: thekedaarId -> contractorId
+  contractorId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 
     required: true 

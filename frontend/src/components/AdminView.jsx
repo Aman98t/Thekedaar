@@ -21,11 +21,10 @@ export default function AdminView({ currentUser }) {
   const [contractors, setContractors] = useState([]);
   const [globalStats, setGlobalStats] = useState({
     totalContractors: 0,
-    totalLabours: 0,
+    totalWorkers: 0, // ✅ CHANGED: totalLabours -> totalWorkers
     totalFundsDeployed: 0
   });
 
-  // 🚀 NAYA: DB Health ke liye state
   const [dbHealth, setDbHealth] = useState({
     latencyMs: '--',
     indexSizeMB: '0.00',
@@ -37,12 +36,11 @@ export default function AdminView({ currentUser }) {
     status: 'Checking...'
   });
 
-  // Load hote hi saari APIs call hongi
   useEffect(() => {
     fetchContractors();
     fetchBannerState(); 
     fetchGlobalStats(); 
-    fetchDbHealth(); // 👈 Live DB Health Call
+    fetchDbHealth(); 
   }, []);
 
   const fetchGlobalStats = async () => {
@@ -50,6 +48,7 @@ export default function AdminView({ currentUser }) {
       const response = await fetch(`${API_BASE_URL}/api/admin/stats`);
       if (response.ok) {
         const data = await response.json();
+        // ✅ CHANGED: API ab totalWorkers return karti hai (humne adminRoutes.js me theek kiya tha)
         setGlobalStats(data);
       }
     } catch (error) {
@@ -93,7 +92,6 @@ export default function AdminView({ currentUser }) {
     }
   };
 
-  // 🚀 NAYA: Fetch Real MongoDB Health Stats
   const fetchDbHealth = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/db-health`);
@@ -109,7 +107,6 @@ export default function AdminView({ currentUser }) {
 
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  // ✅ NAYA: Thekedaar ko assign karne ke liye initial password state
   const [newPassword, setNewPassword] = useState('');
 
   // ==========================================
@@ -123,26 +120,27 @@ export default function AdminView({ currentUser }) {
   const [maintenanceText, setMaintenanceText] = useState('Scheduled system maintenance tomorrow from 2:00 AM to 4:00 AM IST. Platforms will be offline.');
 
   const templates = {
-    en: { welcome: "Welcome to the platform! Please verify your active sites.", alert: "Action Required: Update your weekly labour attendance sheets." },
-    hi: { welcome: "प्लेटफॉर्म पर आपका स्वागत है! कृपया अपने सक्रिय साइट्स की पुष्टि करें।", alert: "आवश्यक कार्रवाई: अपने साप्ताहिक लेबर हाजिरी पत्रक को अपडेट करें।" }
+    en: { welcome: "Welcome to the platform! Please verify your active sites.", alert: "Action Required: Update your weekly worker attendance sheets." },
+    hi: { welcome: "प्लेटफॉर्म पर आपका स्वागत है! कृपया अपने सक्रिय साइट्स की पुष्टि करें।", alert: "आवश्यक कार्रवाई: अपने साप्ताहिक वर्कर हाजिरी पत्रक को अपडेट करें।" }
   };
 
   const handleOnboardContractor = async (e) => {
     e.preventDefault();
-    // ✅ NAYA: Password ki validation bhi check kar li
     if (!newName.trim() || !newPhone.trim() || !newPassword.trim()) {
       showToast("Please fill Name, Phone, and Password", "error");
       return;
     }
     try {
+      // ✅ CHANGED: Endpoint to use the generalized user register 
+      // (Backend me user register dono banata hai, but role pass karna zaroori hai)
       const response = await fetch(`${API_BASE_URL}/api/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           name: newName.trim(), 
           phone: newPhone.trim(), 
-          role: 'thekedaar',
-          password: newPassword.trim() // 👈 NAYA: Yahan 'admin' hata kar state laga di 
+          role: 'contractor', // ✅ CHANGED: thekedaar -> contractor
+          password: newPassword.trim() 
         }),
       });
 
@@ -152,7 +150,7 @@ export default function AdminView({ currentUser }) {
         showToast(`${newName} successfully database me add ho gaya!`, "success");
         setNewName('');
         setNewPhone('');
-        setNewPassword(''); // 👈 NAYA: Password state bhi clear kardi
+        setNewPassword('');
         fetchContractors(); 
         fetchGlobalStats();
       } else {
@@ -201,7 +199,7 @@ export default function AdminView({ currentUser }) {
       }
     } catch (error) {
       console.error("Delete failed:", error);
-      showToast("Server error. Thekedaar delete nahi hua.", "error");
+      showToast("Server error. Contractor delete nahi hua.", "error");
     }
   };
 
@@ -232,7 +230,7 @@ export default function AdminView({ currentUser }) {
   };
 
   // ==========================================
-  // 🔑 ADMIN: RESET CONTRACTOR PASSWORD (Option A Workflow)
+  // 🔑 ADMIN: RESET CONTRACTOR PASSWORD
   // ==========================================
   const handleResetContractorPassword = async (contractorId, contractorName) => {
     const newPassword = prompt(`Enter new password for Contractor (${contractorName}):`);
@@ -248,13 +246,14 @@ export default function AdminView({ currentUser }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        // Backend 'thekedaarId' key expect karta hai, isliye hum map kar rahe hain:
-        body: JSON.stringify({ thekedaarId: contractorId, newPassword })
+        // ✅ CHANGED: thekedaarId -> contractorId (Ab hamara backend yahi expect karta hai)
+        body: JSON.stringify({ contractorId: contractorId, newPassword })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message, "success");
+        fetchContractors(); // ✅ NAYA: Taaki wo red badge turant hat jaye
       } else {
         showToast(data.message || "Failed to reset password", "error");
       }
@@ -317,7 +316,7 @@ export default function AdminView({ currentUser }) {
           <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
               <div>
-                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block mb-1">Total Network Thekedaars</span>
+                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block mb-1">Total Network Contractors</span>
                 <div className="text-3xl font-black text-white leading-none">{globalStats.totalContractors}</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50"><Users className="w-6 h-6 text-indigo-400" /></div>
@@ -325,8 +324,8 @@ export default function AdminView({ currentUser }) {
             
             <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-lg">
               <div>
-                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block mb-1">Total Active Labours</span>
-                <div className="text-3xl font-black text-white leading-none">{globalStats.totalLabours}</div>
+                <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block mb-1">Total Active Workers</span>
+                <div className="text-3xl font-black text-white leading-none">{globalStats.totalWorkers}</div>
               </div>
               <div className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50"><Activity className="w-6 h-6 text-amber-400" /></div>
             </div>
@@ -342,7 +341,7 @@ export default function AdminView({ currentUser }) {
 
           <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-3xs space-y-4">
             <div>
-              <h3 className="font-black text-slate-950 text-sm">Onboard Thekedaar</h3>
+              <h3 className="font-black text-slate-950 text-sm">Onboard Contractor</h3>
               <p className="text-[10px] text-slate-400 font-medium">Create isolated environment access fields for a new contractor.</p>
             </div>
             
@@ -372,26 +371,25 @@ export default function AdminView({ currentUser }) {
                 />
               </div>
               
-{/* ✅ NAYA: Assign Password Input (Matched with Light Theme) */}
-<div>
-  <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">
-    Assign Initial Password
-  </label>
-  <input 
-    type="text" 
-    value={newPassword} 
-    onChange={(e) => setNewPassword(e.target.value)}
-    placeholder="e.g. Thekedaar@123" 
-    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl font-bold text-slate-800 text-xs font-mono focus:outline-none focus:border-slate-950"
-    required 
-  />
-  <p className="text-[9px] text-slate-400 font-medium mt-1 ml-1">
-    Contractor will use this password for their first login.
-  </p>
-</div>
+              <div>
+                <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">
+                  Assign Initial Password
+                </label>
+                <input 
+                  type="text" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="e.g. Contractor@123" 
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl font-bold text-slate-800 text-xs font-mono focus:outline-none focus:border-slate-950"
+                  required 
+                />
+                <p className="text-[9px] text-slate-400 font-medium mt-1 ml-1">
+                  Contractor will use this password for their first login.
+                </p>
+              </div>
 
               <button type="submit" className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black p-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs">
-                <UserPlus className="w-3.5 h-3.5" /> Register Thekedaar
+                <UserPlus className="w-3.5 h-3.5" /> Register Contractor
               </button>
             </form>
           </div>
@@ -399,14 +397,14 @@ export default function AdminView({ currentUser }) {
           <div className="bg-white border border-slate-200 rounded-xl shadow-3xs p-4 lg:col-span-2 space-y-4">
             <div>
               <h3 className="font-black text-slate-950 text-sm">Active Contractor Clusters</h3>
-              <p className="text-[10px] text-slate-400 font-medium">Each manager possesses separate, non-overlapping labour rosters (Encapsulated).</p>
+              <p className="text-[10px] text-slate-400 font-medium">Each manager possesses separate, non-overlapping worker rosters (Encapsulated).</p>
             </div>
 
             <div className="overflow-x-auto border border-slate-100 rounded-xl">
               <table className="w-full text-left border-collapse font-medium">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 font-black text-[9px] uppercase">
-                    <th className="p-3">Thekedaar Identity</th>
+                    <th className="p-3">Contractor Identity</th>
                     <th className="p-3">Aggregated Metrics Summary</th>
                     <th className="p-3">Status Layer</th>
                     <th className="p-3 text-right">Actions</th>
@@ -439,39 +437,33 @@ export default function AdminView({ currentUser }) {
                           </span>
                         </td>
                         
-             {/* 🛠️ UPDATED: ACTION BUTTONS WITH "RESET PASSWORD" */}
-<td className="p-3 text-right space-x-1 whitespace-nowrap">
-  
-  {/* ✅ NAYA: Agar reset request true hai, toh Red badge dikhao */}
-  {c.resetRequested && (
-    <button 
-      onClick={() => handleResetContractorPassword(c.id, c.name)}
-      className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[10px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse mr-2"
-      title="Click to reset password"
-    >
-      🔴 RESET REQ
-    </button>
-  )}
-  
-  {/* Existing Suspend/Active Button */}
-  <button 
-    onClick={() => cycleStatus(c.id, c.status)}
-    title="Cycle Node State (Suspend/Deactivate)"
-    className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all inline-block"
-  >
-    {c.status === 'Active' ? <ToggleRight className="w-4 h-4 text-emerald-500" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
-  </button>
-  
-  {/* Existing Delete Button */}
-  <button 
-    onClick={() => handleDeleteContractor(c.id, c.name)}
-    title="Purge Contractor Profile"
-    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-block"
-  >
-    <Trash2 className="w-3.5 h-3.5" />
-  </button>
-
-</td>
+                        <td className="p-3 text-right space-x-1 whitespace-nowrap">
+                          {c.resetRequested && (
+                            <button 
+                              onClick={() => handleResetContractorPassword(c.id, c.name)}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/30 rounded-lg text-[10px] font-black cursor-pointer hover:bg-red-500/20 transition-colors animate-pulse mr-2"
+                              title="Click to reset password"
+                            >
+                              🔴 RESET REQ
+                            </button>
+                          )}
+                          
+                          <button 
+                            onClick={() => cycleStatus(c.id, c.status)}
+                            title="Cycle Node State (Suspend/Deactivate)"
+                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all inline-block"
+                          >
+                            {c.status === 'Active' ? <ToggleRight className="w-4 h-4 text-emerald-500" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
+                          </button>
+                          
+                          <button 
+                            onClick={() => handleDeleteContractor(c.id, c.name)}
+                            title="Purge Contractor Profile"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all inline-block"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
-import LabourView from './components/LabourView';
+// ✅ CHANGED: File names aur component names update kiye
+import WorkerView from './components/WorkerView';
 import { ToastProvider } from './context/ToastContext';
 import AdminView from './components/AdminView';
-import ThekedaarView from './components/ThekedaarView';
+import ContractorView from './components/ContractorView';
 import { LogOut, User, Shield, HardHat, Landmark } from 'lucide-react';
 
 export default function App() {
+  // LocalStorage key waisi hi rakhi hai taaki session na toote
   const [currentUser, setCurrentUser] = useState(() => {
     const session = localStorage.getItem('thekedaar_active_session');
     return session ? JSON.parse(session) : null;
@@ -34,8 +36,10 @@ export default function App() {
             <div className="flex items-center gap-2">
               <span className="text-xs bg-indigo-600 px-2 py-1 rounded-lg font-black tracking-wider uppercase text-white">
                 {currentUser.role === 'admin' && '🛡️ SYSTEM ADMIN'}
-                {currentUser.role === 'thekedaar' && '🏗️ CONTRACTOR'}
-                {currentUser.role === 'labour' && '👷 SITE WORKER'}
+                {/* ✅ CHANGED: role check thekedaar -> contractor */}
+                {currentUser.role === 'contractor' && '🏗️ CONTRACTOR'}
+                {/* ✅ CHANGED: role check labour -> worker */}
+                {currentUser.role === 'worker' && '👷 SITE WORKER'}
               </span>
               <span className="text-slate-400 font-bold text-[11px]">| logged in as <span className="text-slate-100 font-black">{currentUser.name}</span></span>
             </div>
@@ -51,8 +55,9 @@ export default function App() {
           {/* 🚀 ROLE-BASED ACCESS CONTROL DISPATCH CONTAINER */}
           <main className="flex-1 p-5 max-w-[1600px] w-full mx-auto overflow-y-auto">
             {currentUser.role === 'admin' && <AdminView currentUser={currentUser} />}
-            {currentUser.role === 'thekedaar' && <ThekedaarView currentUser={currentUser} />}
-            {currentUser.role === 'labour' && <LabourView currentUser={currentUser} />}
+            {/* ✅ CHANGED: Components aur role condition update kiye */}
+            {currentUser.role === 'contractor' && <ContractorView currentUser={currentUser} />}
+            {currentUser.role === 'worker' && <WorkerView currentUser={currentUser} />}
           </main>
 
         </div>

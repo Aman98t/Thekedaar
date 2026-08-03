@@ -1,14 +1,18 @@
+// ==========================================
+// 🧑‍🔧 WORKER VIEW - SELF-SERVICE DASHBOARD
+// Location: src/components/WorkerView.jsx
+// ==========================================
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { 
   HardHat, Calendar, CheckCircle2, AlertTriangle, 
   IndianRupee, User, Building, Send, Clock,
   ChevronLeft, ChevronRight, MapPin, ChevronDown,
-  ShieldAlert // 👈 Naya Icon add kiya Security Note ke liye
+  ShieldAlert 
 } from 'lucide-react';
-import SystemAlertBanner from './SystemAlertBanner'; // 👈 Banner Import
+import SystemAlertBanner from './SystemAlertBanner'; 
 
-export default function LabourView({ currentUser }) {
+export default function WorkerView({ currentUser }) {
   const [allSites, setAllSites] = useState([]);
   const [myAssignments, setMyAssignments] = useState([]);
   const [selectedSiteId, setSelectedSiteId] = useState('');
@@ -19,14 +23,15 @@ export default function LabourView({ currentUser }) {
 
   if (!currentUser) return <div className="p-10 text-center text-slate-500 font-bold">Please login...</div>;
 
-  const masterLabourId = currentUser._id || currentUser.id; 
+  // ✅ CHANGED: masterLabourId -> masterWorkerId
+  const masterWorkerId = currentUser._id || currentUser.id; 
   const dailyWage = Number(currentUser.dailyWage || 0);
 
   useEffect(() => {
-    if (masterLabourId) {
+    if (masterWorkerId) {
       const fetchSites = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/sites/worker-sites/${masterLabourId}`);
+          const res = await fetch(`${API_BASE_URL}/api/sites/worker-sites/${masterWorkerId}`);
           if (res.ok) {
             const data = await res.json();
             setAllSites(data.sites || []);
@@ -41,14 +46,15 @@ export default function LabourView({ currentUser }) {
 
       const fetchAttendance = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/attendance/worker/${masterLabourId}`);
+          // ✅ CHANGED: worker/masterWorkerId (ye pehle se sahi endpoint set hai backend me)
+          const res = await fetch(`${API_BASE_URL}/api/attendance/worker/${masterWorkerId}`);
           if (res.ok) setAttendanceRecords(await res.json());
         } catch (err) { console.error(err); }
       };
       
       const fetchAdvances = async () => {
         try {
-          const res = await fetch(`${API_BASE_URL}/api/advances/worker/${masterLabourId}`);
+          const res = await fetch(`${API_BASE_URL}/api/advances/worker/${masterWorkerId}`);
           if (res.ok) setDbAdvances(await res.json());
         } catch (err) { console.error(err); }
       };
@@ -57,9 +63,9 @@ export default function LabourView({ currentUser }) {
       fetchAttendance();
       fetchAdvances();
     }
-  }, [masterLabourId]);
+  }, [masterWorkerId]);
 
-  // ISOLATION: Majdoor ki unhi sites ko dropdown me dalo jahan wo assigned hai ya kaam kar chuka hai
+  // ISOLATION: Worker ki unhi sites ko dropdown me dalo jahan wo assigned hai ya kaam kar chuka hai
   const activeSiteIds = new Set();
   attendanceRecords.forEach(a => activeSiteIds.add(String(a.siteId)));
   dbAdvances.forEach(a => activeSiteIds.add(String(a.siteId)));
@@ -102,15 +108,16 @@ export default function LabourView({ currentUser }) {
   const handleReportIssue = (e) => {
     e.preventDefault();
     if (!issueDetail.trim()) return;
-    setIssues([{ id: Date.now(), type: 'Site Issue', detail: issueDetail.trim(), status: 'Sent to Thekedaar' }, ...issues]);
+    setIssues([{ id: Date.now(), type: 'Site Issue', detail: issueDetail.trim(), status: 'Sent to Contractor' }, ...issues]);
     setIssueDetail('');
   };
 
   return (
     <div className="max-w-md mx-auto space-y-5 p-2 text-xs text-slate-800 animate-fadeIn">
       
-      {/* 🚀 REAL-TIME SYSTEM ALERT BANNER (Correct Scope & Placement) */}
-      <SystemAlertBanner userRole="labour" userStatus={currentUser?.status || 'Active'} />
+      {/* 🚀 REAL-TIME SYSTEM ALERT BANNER */}
+      {/* ✅ CHANGED: userRole worker */}
+      <SystemAlertBanner userRole="worker" userStatus={currentUser?.status || 'Active'} />
 
       {/* 🧑‍🎤 PROFILE & DYNAMIC SITE SELECTOR */}
       <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 text-white shadow-md">
@@ -239,15 +246,17 @@ export default function LabourView({ currentUser }) {
         </div>
         <form onSubmit={handleReportIssue} className="space-y-3">
           <textarea value={issueDetail} onChange={(e) => setIssueDetail(e.target.value)} placeholder="Explain the problem here..." className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl font-medium text-slate-800 text-xs focus:outline-none" required />
-          <button type="submit" className="w-full bg-slate-950 text-white p-2.5 rounded-xl font-black text-xs">Send Alert to Thekedaar</button>
+          {/* ✅ CHANGED: Thekedaar -> Contractor */}
+          <button type="submit" className="w-full bg-slate-950 text-white p-2.5 rounded-xl font-black text-xs">Send Alert to Contractor</button>
         </form>
       </div>
 
-      {/* 🔑 NAYA: PASSWORD RESET & SECURITY INFO BOX (Option A Workflow) */}
+      {/* 🔑 SECURITY INFO BOX */}
       <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-start gap-3 shadow-3xs">
         <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
         <p className="text-[11px] font-bold text-amber-900 leading-relaxed">
-          Security Note: Agar aapko apna password change ya reset karwana ho, toh kripya apne Thekedaar se sampark karein. Wo apne dashboard se turant aapka password update kar sakte hain.
+          {/* ✅ CHANGED: Thekedaar -> Contractor */}
+          Security Note: Agar aapko apna password change ya reset karwana ho, toh kripya apne Contractor se sampark karein. Wo apne dashboard se turant aapka password update kar sakte hain.
         </p>
       </div>
 

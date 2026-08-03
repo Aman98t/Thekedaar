@@ -3,28 +3,34 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const Advance = require('../models/Advance');
-const Site = require('../models/Site'); // 🚀 NAYA: Site model import kiya
-const { createThekedaar, resetThekedaarPassword } = require('../controllers/adminController');
+const Site = require('../models/Site'); 
+
+// ✅ NAYA: Naye controller function names import kiye 
+const { createContractor, resetContractorPassword } = require('../controllers/adminController');
 const verifyToken = require('../middleware/authMiddleware');
 const verifyAdmin = require('../middleware/adminMiddleware');
 
 // PUT /api/admin/reset-password
-router.put('/reset-password', verifyToken, verifyAdmin, resetThekedaarPassword);
-// POST /api/admin/create-thekedaar (Only Admin can access)
-router.post('/create-thekedaar', verifyToken, verifyAdmin, createThekedaar);
+router.put('/reset-password', verifyToken, verifyAdmin, resetContractorPassword); // ✅ CHANGED
+
+// POST /api/admin/create-contractor (Only Admin can access)
+router.post('/create-contractor', verifyToken, verifyAdmin, createContractor); // ✅ CHANGED
+
 // ==========================================
 // 1. GET GLOBAL ADMIN DASHBOARD STATS (Top ke 3 bade dabbe)
 // ==========================================
 router.get('/stats', async (req, res) => {
   try {
-    const totalContractors = await User.countDocuments({ role: 'thekedaar' });
-    const totalLabours = await User.countDocuments({ role: 'labour' });
+    // ✅ CHANGED: thekedaar -> contractor, labour -> worker
+    const totalContractors = await User.countDocuments({ role: 'contractor' });
+    const totalWorkers = await User.countDocuments({ role: 'worker' });
+    
     const advanceAggregation = await Advance.aggregate([
       { $group: { _id: null, totalAmount: { $sum: "$amount" } } }
     ]);
     const totalFundsDeployed = advanceAggregation.length > 0 ? advanceAggregation[0].totalAmount : 0;
 
-    res.status(200).json({ totalContractors, totalLabours, totalFundsDeployed });
+    res.status(200).json({ totalContractors, totalWorkers, totalFundsDeployed });
   } catch (error) {
     res.status(500).json({ message: "Error calculating stats", error: error.message });
   }
@@ -35,21 +41,22 @@ router.get('/stats', async (req, res) => {
 // ==========================================
 router.get('/contractors-detailed', async (req, res) => {
   try {
-    // Saare thekedaars dhoondho
-    const thekedaars = await User.find({ role: 'thekedaar' });
+    // ✅ CHANGED: thekedaar -> contractor
+    const contractors = await User.find({ role: 'contractor' });
 
-    // Har thekedaar ka hisaab calculate karo
-    const detailedData = await Promise.all(thekedaars.map(async (t) => {
+    // Har contractor ka hisaab calculate karo
+    const detailedData = await Promise.all(contractors.map(async (c) => {
       // 1. Iski kitni sites hain?
-      const activeSites = await Site.countDocuments({ thekedaarId: t._id });
+      // ✅ CHANGED: thekedaarId -> contractorId
+      const activeSites = await Site.countDocuments({ contractorId: c._id });
       
-      // 2. Iske under kitne majdoor register hain?
-      const workers = await User.countDocuments({ role: 'labour', thekedaarId: t._id });
+      // 2. Iske under kitne worker register hain?
+      // ✅ CHANGED: role: 'worker', contractorId
+      const workers = await User.countDocuments({ role: 'worker', contractorId: c._id });
       
-      // 3. Isne apne majdooron ko total kitna advance baanta hai?
-      // Uske liye pehle iski saari sites nikalte hain
-      const thekedaarSites = await Site.find({ thekedaarId: t._id }).select('_id');
-      const siteIds = thekedaarSites.map(s => s._id);
+      // 3. Isne apne worker ko total kitna advance baanta hai?
+      const contractorSites = await Site.find({ contractorId: c._id }).select('_id');
+      const siteIds = contractorSites.map(s => s._id);
       
       const advanceAgg = await Advance.aggregate([
         { $match: { siteId: { $in: siteIds } } },
@@ -58,14 +65,14 @@ router.get('/contractors-detailed', async (req, res) => {
       const wagesProcessed = advanceAgg.length > 0 ? advanceAgg[0].totalAmount : 0;
 
       return {
-        id: t._id,
-        name: t.name,
-        phone: t.phone,
-        status: t.status || 'Active',
+        id: c._id,
+        name: c.name,
+        phone: c.phone,
+        status: c.status || 'Active',
         activeSites,
-        workers,
+        workers, // Ab is variable ka naam 'workers' hai
         wagesProcessed,
-        resetRequested: t.resetRequested
+        resetRequested: c.resetRequested
       };
     }));
 
@@ -97,7 +104,6 @@ router.post('/broadcast', async (req, res) => {
 // ==========================================
 router.get('/broadcasts', async (req, res) => {
   try {
-    // Sabse latest 3 announcements lana (newest first)
     const broadcasts = await Broadcast.find().sort({ createdAt: -1 }).limit(3);
     res.status(200).json(broadcasts);
   } catch (error) {
@@ -112,7 +118,6 @@ router.put('/banner', async (req, res) => {
   try {
     const { maintenanceMode, maintenanceText } = req.body;
     
-    // System me hamesha sirf 1 banner document rahega (Singleton doc update/create)
     let banner = await SystemBanner.findOne();
     if (!banner) {
       banner = new SystemBanner({ maintenanceMode, maintenanceText });
@@ -142,6 +147,7 @@ router.get('/banner', async (req, res) => {
     res.status(500).json({ message: "Error fetching banner", error: error.message });
   }
 });
+
 // ==========================================
 // 7. GET REAL MONGODB DATABASE HEALTH & STATS
 // ==========================================
@@ -150,11 +156,9 @@ router.get('/db-health', async (req, res) => {
     const mongoose = require('mongoose');
     const startTime = Date.now();
     
-    // Asli MongoDB stats ka command chalao aur execution time napo
     const stats = await mongoose.connection.db.stats();
-    const latencyMs = Math.max(Date.now() - startTime, 2); // Minimum 2ms for local fast queries
+    const latencyMs = Math.max(Date.now() - startTime, 2);
 
-    // Bytes ko MB me convert karo (2 decimal tak)
     const indexSizeMB = (stats.indexSize / (1024 * 1024)).toFixed(2);
     const dataSizeMB = (stats.dataSize / (1024 * 1024)).toFixed(2);
     const storageSizeMB = (stats.storageSize / (1024 * 1024)).toFixed(2);

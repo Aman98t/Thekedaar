@@ -8,7 +8,6 @@ import { useToast } from '../context/ToastContext';
 import { API_BASE_URL } from '../config';
 
 export default function Login({ onLoginSuccess }) {
-  // Only Phone, Password, and Loading states are needed now
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +21,6 @@ export default function Login({ onLoginSuccess }) {
     }
 
     setLoading(true);
-    // Directly hitting the login endpoint
     const endpoint = `${API_BASE_URL}/api/users/login`;
     const payload = { phone, password };
 
@@ -36,13 +34,13 @@ export default function Login({ onLoginSuccess }) {
       const data = await res.json();
 
       if (res.ok && (data.success || data.user || data.message === "Login Successful!")) {
-        // Save active session & token
+        // ✅ NAYA: localstorage variable naam waisa hi rehne diya hai taki existing logout logic na toote
         localStorage.setItem('thekedaar_active_session', JSON.stringify(data.user));
         if (data.token) {
           localStorage.setItem('buildhub_token', data.token);
         }
         showToast("Login Successful!", "success");
-        onLoginSuccess(data.user); // Auto-routes to Admin/Thekedaar/Labour view
+        onLoginSuccess(data.user); 
       } else {
         showToast(data.message || "Authentication failed", "error");
       }
@@ -54,37 +52,35 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
- // Naya aur refined Forgot Password logic
- const handleForgotPassword = async () => {
-  // Check karo ki user ne phone number box me kuch dala hai ya nahi
-  if (!phone || phone.length !== 10) {
-    showToast("Please enter your 10-digit mobile number first, then click Forgot Password.", "error");
-    return;
-  }
-
-  setLoading(true);
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/users/request-password-reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone })
-    });
-
-    const data = await res.json();
-
-    if (res.ok) {
-      // SUCCESS: Request chali gayi, ab alert dikhao
-      alert("🚨 REQUEST SENT!\n\nYour password reset request has been sent to your Admin/Contractor's dashboard.\n\nPlease contact them directly to get your new password.");
-      showToast("Request sent successfully!", "success");
-    } else {
-      showToast(data.message || "Failed to send request", "error");
+  const handleForgotPassword = async () => {
+    if (!phone || phone.length !== 10) {
+      showToast("Please enter your 10-digit mobile number first, then click Forgot Password.", "error");
+      return;
     }
-  } catch (err) {
-    showToast("Server connection failed.", "error");
-  } finally {
-    setLoading(false);
-  }
-};
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/users/request-password-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // ✅ CHANGED: Alert message updated
+        alert("🚨 REQUEST SENT!\n\nYour password reset request has been sent to your Admin/Contractor's dashboard.\n\nPlease contact them directly to get your new password.");
+        showToast("Request sent successfully!", "success");
+      } else {
+        showToast(data.message || "Failed to send request", "error");
+      }
+    } catch (err) {
+      showToast("Server connection failed.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
@@ -97,7 +93,8 @@ export default function Login({ onLoginSuccess }) {
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-            Thekedaar Portal
+            {/* ✅ CHANGED: Thekedaar Portal to Contractor Portal */}
+            Contractor Portal
           </h1>
 
           <p className="text-xs sm:text-sm font-medium text-slate-400 max-w-xs mx-auto leading-relaxed">
@@ -109,8 +106,9 @@ export default function Login({ onLoginSuccess }) {
             <span className="px-2.5 py-1 bg-slate-800/90 border border-slate-700 text-amber-400 font-bold text-[11px] rounded-lg">
               👷 Contractor
             </span>
+            {/* ✅ CHANGED: Labour to Worker */}
             <span className="px-2.5 py-1 bg-slate-800/90 border border-slate-700 text-sky-400 font-bold text-[11px] rounded-lg">
-              🧑‍🔧 Labour
+              🧑‍🔧 Worker
             </span>
             <span className="px-2.5 py-1 bg-slate-800/90 border border-slate-700 text-emerald-400 font-bold text-[11px] rounded-lg">
               🛡️ Admin
@@ -121,7 +119,6 @@ export default function Login({ onLoginSuccess }) {
         {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {/* Mobile Number Input */}
           <div className="space-y-1">
             <label className="block text-[10px] font-black uppercase text-slate-400">Mobile Number</label>
             <div className="relative">
@@ -138,7 +135,6 @@ export default function Login({ onLoginSuccess }) {
             </div>
           </div>
 
-          {/* Password Input */}
           <div className="space-y-1">
             <div className="flex justify-between items-center">
               <label className="block text-[10px] font-black uppercase text-slate-400">Password</label>
@@ -163,7 +159,6 @@ export default function Login({ onLoginSuccess }) {
             </div>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
@@ -172,8 +167,6 @@ export default function Login({ onLoginSuccess }) {
             {loading ? "Signing in..." : "Sign In to Dashboard"}
           </button>
         </form>
-
-        {/* Public Signup/Register option has been permanently removed for security */}
       </div>
     </div>
   );
