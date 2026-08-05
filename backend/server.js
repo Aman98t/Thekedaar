@@ -5,21 +5,20 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-
+const cookieParser = require('cookie-parser'); // 👈 Yeh Naya hai!
 const authRoutes = require('./routes/authRoutes');
 const User = require('./models/User'); 
 
 const app = express();
 
-// ✅ STRICT CORS SECURITY SETUP
+/// CORS Ko strict karna hoga (Varna cookies nahi chalengi)
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  origin: 'http://localhost:5173', // 👈 Apne frontend ka exact URL likhna yahan (Vite default is 5173)
+  credentials: true // 👈 YEH BOHT ZAROORI HAI COOKIES KE LIYE
 }));
+
 app.use(express.json());
-app.use('/api/auth', authRoutes);
+app.use(cookieParser()); // 👈 Aur yeh middleware add karna hoga
 
 // 🔌 MongoDB Connection & Auto-Seed Logic
 mongoose.connect(process.env.MONGO_URI)
