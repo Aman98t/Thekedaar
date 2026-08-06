@@ -5,14 +5,14 @@
 // ==========================================
 
 import React, { useState, useEffect } from 'react';
-import jsPDF from 'jspdf';
+import {jsPDF} from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import SystemAlertBanner from './SystemAlertBanner';
 import { API_BASE_URL } from '../config';
 import { useToast } from '../context/ToastContext';
 import { 
-  Building, Users, ClipboardCheck, HandCoins, 
+  Building, Users, ClipboardCheck, HandCoins, Download,
   MapPin, Phone, Search, IndianRupee, Trash2,
   Check, X, Clock, ChevronLeft, ChevronRight,
   PackageOpen, Landmark, Wallet, 
@@ -413,7 +413,7 @@ function WorkerRoster({ siteId, currentUser }) {
 }
 
 // ==========================================
-// 3. ATTENDANCE SHEET
+// 3. ATTENDANCE SHEET (With Dynamic PDF/Excel Export)
 // ==========================================
 function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   const { showToast } = useToast();
@@ -422,12 +422,19 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   const [siteWorkers, setSiteWorkers] = useState([]);
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
 
+  // ✅ NAYA: Date Range State (Default: Pichle 7 din)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   useEffect(() => {
     const fetchSiteWorkers = async () => {
       try {
         const contractorId = currentUser._id || currentUser.id;
         const [resAssign, resWorkers] = await Promise.all([
-          // ✅ CHANGED: variables
           fetch(`${API_BASE_URL}/api/sites/assignments/${contractorId}`),
           fetch(`${API_BASE_URL}/api/users/workers/${contractorId}`)
         ]);
@@ -457,9 +464,7 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
   }, [siteId, currentUser]);
 
   useEffect(() => {
-    if (siteId) {
-      fetchAttendance();
-    }
+    if (siteId) fetchAttendance();
   }, [siteId]);
 
   const fetchAttendance = async () => {
@@ -508,51 +513,178 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
 
   const getStatus = (day) => attendance[getFormattedDateKey(day)]?.[selectedWorkerId] || null;
 
+  // ==========================================
+  // 🚀 REPORT GENERATION LOGIC
+  // ==========================================
+  const generateReportData = () => {
+    if (!fromDate || !toDate) {
+      showToast("Please select valid dates!", "error");
+      return null;
+    }
+    if (new Date(fromDate) > new Date(toDate)) {
+      showToast("'From Date' cannot be after 'To Date'", "error");
+      return null;
+    }
+
+    // 1. Generate dates array between fromDate and toDate
+    const dateKeys = [];
+    let curr = new Date(fromDate);
+    const end = new Date(toDate);
+    while (curr <= end) {
+      const yyyy = curr.getFullYear();
+      const mm = String(curr.getMonth() + 1).padStart(2, '0');
+      const dd = String(curr.getDate()).padStart(2, '0');
+      dateKeys.push(`${yyyy}-${mm}-${dd}`);
+      curr.setDate(curr.getDate() + 1);
+    }
+
+    // 2. Setup Headers (Name, Skill, Dates..., Total P, H, A)
+    const formattedDates = dateKeys.map(d => {
+      const parts = d.split('-');
+      return `${parts[2]}/${parts[1]}`; // DD/MM format
+    });
+    const headers = ['Worker Name', 'Skill', ...formattedDates, 'Total P', 'Total H', 'Total A'];
+
+    // 3. Process data per worker
+    const rows = siteWorkers.map(worker => {
+      let pCount = 0, hCount = 0, aCount = 0;
+      const rowData = [worker.name, worker.skill];
+      
+      dateKeys.forEach(date => {
+        const status = attendance[date]?.[worker._id] || '-';
+        if (status === 'present') { pCount++; rowData.push('P'); }
+        else if (status === 'halfday') { hCount++; rowData.push('H'); }
+        else if (status === 'absent') { aCount++; rowData.push('A'); }
+        else { rowData.push('-'); }
+      });
+      
+      rowData.push(pCount, hCount, aCount);
+      return rowData;
+    });
+
+    return { headers, rows };
+  };
+
+  const downloadPDF = () => {
+    const data = generateReportData();
+    if (!data) return;
+    
+    // Landscape mode kyunki columns (dates) zyada ho sakti hain
+    const doc = new jsPDF('landscape');
+    const siteName = activeSiteData?.name || 'Site';
+    
+    doc.setFontSize(16);
+    doc.text(`Attendance Report: ${siteName}`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Period: ${fromDate} to ${toDate}`, 14, 22);
+
+    doc.autoTable({
+      head: [data.headers],
+      body: data.rows,
+      startY: 28,
+      styles: { fontSize: 8, halign: 'center' },
+      headStyles: { fillColor: [79, 70, 229] }, // Indigo-600 Theme matching
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 'auto' }, // Name
+        1: { halign: 'left', cellWidth: 'auto' }  // Skill
+      },
+    });
+
+    doc.save(`Attendance_${siteName.replace(/\s+/g, '_')}_${fromDate}_to_${toDate}.pdf`);
+    showToast("PDF Downloaded successfully!", "success");
+  };
+
+  const downloadExcel = () => {
+    const data = generateReportData();
+    if (!data) return;
+
+    const ws = XLSX.utils.aoa_to_sheet([data.headers, ...data.rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+    
+    const siteName = activeSiteData?.name || 'Site';
+    XLSX.writeFile(wb, `Attendance_${siteName.replace(/\s+/g, '_')}_${fromDate}_to_${toDate}.xlsx`);
+    showToast("Excel Sheet Downloaded successfully!", "success");
+  };
+
+  // ==========================================
+  // RENDER LOGIC
+  // ==========================================
   const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   const blanks = Array(firstDayOfMonth).fill(null);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-6">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-100">
         <div>
-          <h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><ClipboardCheck className="w-4 h-4 text-indigo-600" /> Attendance Grid</h3>
+          <h3 className="font-black text-slate-950 text-sm flex items-center gap-2">
+            <ClipboardCheck className="w-5 h-5 text-indigo-600" /> Attendance Grid
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Mark daily attendance or export historical reports.</p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-          {siteWorkers.length > 0 && (
-            <select value={selectedWorkerId} onChange={(e) => setSelectedWorkerId(e.target.value)} className="bg-slate-50 border border-slate-200 p-2 rounded-xl font-bold text-slate-800 text-xs focus:outline-none">
-              {siteWorkers.map(w => <option key={w._id} value={w._id}>{w.name} ({w.skill})</option>)}
-            </select>
-          )}
+        
+        {/* EXPORT REPORT SECTION (Naya Feature) */}
+        <div className="flex flex-wrap items-end gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50 w-full lg:w-auto">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">From</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">To</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-auto lg:ml-2">
+            <button onClick={downloadPDF} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition-colors shadow-sm shadow-rose-600/20">
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
+            <button onClick={downloadExcel} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-sm shadow-emerald-600/20">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* CALENDAR SECTION */}
       {siteWorkers.length === 0 ? (
         <p className="text-slate-400 text-center py-12 border border-dashed rounded-xl font-bold">No workers assigned to this site yet. Assign workers from the Roster tab first.</p>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-            <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="p-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg"><ChevronLeft className="w-3.5 h-3.5 text-slate-700" /></button>
-            <span className="text-xs font-black text-slate-900 uppercase tracking-wide font-mono">{currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}</span>
-            <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="p-1 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg"><ChevronRight className="w-3.5 h-3.5 text-slate-700" /></button>
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase">Marking for:</span>
+              <select value={selectedWorkerId} onChange={(e) => setSelectedWorkerId(e.target.value)} className="bg-white border border-slate-200 py-1.5 px-2 rounded-lg font-bold text-slate-800 text-xs focus:outline-none shadow-sm">
+                {siteWorkers.map(w => <option key={w._id} value={w._id}>{w.name} ({w.skill})</option>)}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))} className="p-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg shadow-sm"><ChevronLeft className="w-4 h-4 text-slate-700" /></button>
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wide font-mono w-32 text-center">
+                {currentDate.toLocaleString('default', { month: 'long' })} {currentDate.getFullYear()}
+              </span>
+              <button onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))} className="p-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg shadow-sm"><ChevronRight className="w-4 h-4 text-slate-700" /></button>
+            </div>
           </div>
 
           <div className="border border-slate-200 rounded-xl overflow-hidden shadow-3xs">
             <div className="grid grid-cols-7 bg-slate-100 border-b border-slate-200 text-center">
-              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="py-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">{d}</div>)}
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="py-2 text-[9px] font-black text-slate-500 uppercase tracking-wider">{d}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-px bg-slate-200">
-              {blanks.map((_, i) => <div key={`blank-${i}`} className="bg-white min-h-[44px]" />)}
+              {blanks.map((_, i) => <div key={`blank-${i}`} className="bg-white min-h-[50px]" />)}
               {days.map(day => {
                 const status = getStatus(day);
                 return (
-                  <div key={day} onClick={() => toggleAttendance(day)} className="bg-white min-h-[44px] p-1 cursor-pointer hover:bg-indigo-50/40 transition-colors relative flex flex-col justify-between">
+                  <div key={day} onClick={() => toggleAttendance(day)} className="bg-white min-h-[50px] p-1.5 cursor-pointer hover:bg-indigo-50/40 transition-colors relative flex flex-col justify-between">
                     <span className="text-[10px] font-bold text-slate-400 font-mono">{day}</span>
-                    <div className="flex justify-center mb-1">
-                      {status === 'present' && <div className="bg-emerald-500 w-4 h-4 rounded-full flex items-center justify-center"><Check className="w-2.5 h-2.5 text-white" /></div>}
-                      {status === 'absent' && <div className="bg-rose-500 w-4 h-4 rounded-full flex items-center justify-center"><X className="w-2.5 h-2.5 text-white" /></div>}
-                      {status === 'halfday' && <div className="bg-amber-400 w-4 h-4 rounded-full flex items-center justify-center"><Clock className="w-2.5 h-2.5 text-white" /></div>}
+                    <div className="flex justify-center mb-1.5">
+                      {status === 'present' && <div className="bg-emerald-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm"><Check className="w-3 h-3 text-white" /></div>}
+                      {status === 'absent' && <div className="bg-rose-500 w-5 h-5 rounded-full flex items-center justify-center shadow-sm"><X className="w-3 h-3 text-white" /></div>}
+                      {status === 'halfday' && <div className="bg-amber-400 w-5 h-5 rounded-full flex items-center justify-center shadow-sm"><Clock className="w-3 h-3 text-white" /></div>}
                     </div>
                   </div>
                 );
@@ -564,9 +696,8 @@ function AttendanceSheet({ siteId, currentUser, activeSiteData }) {
     </div>
   );
 }
-
 // ==========================================
-// 4. ADVANCE KHATA TAB
+// 4. ADVANCE KHATA TAB (With Dynamic Export)
 // ==========================================
 function AdvanceLedger({ siteId, currentUser }) {
   const { showToast } = useToast();
@@ -574,6 +705,14 @@ function AdvanceLedger({ siteId, currentUser }) {
   const [workerId, setWorkerId] = useState('');
   const [amount, setAmount] = useState('');
   const [siteWorkers, setSiteWorkers] = useState([]);
+
+  // ✅ NAYA: Date Range State (Default: Pichle 7 din)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     const fetchSiteWorkers = async () => {
@@ -637,42 +776,136 @@ function AdvanceLedger({ siteId, currentUser }) {
     } catch (err) { showToast("Error updating ledger", "error"); }
   };
 
-  const totalAdvancesPaid = advances.reduce((s, a) => s + a.amount, 0);
+  // ✅ NAYA: Filter advances based on date range
+  const filteredAdvances = advances.filter(adv => {
+    const advDate = new Date(adv.date);
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999); // Din ka aakhiri second
+    return advDate >= start && advDate <= end;
+  });
+
+  // Total ab sirf filtered list ka dikhayega
+  const totalAdvancesPaid = filteredAdvances.reduce((s, a) => s + a.amount, 0);
+
+  // ==========================================
+  // 🚀 EXPORT LOGIC (PDF & EXCEL)
+  // ==========================================
+  const downloadPDF = () => {
+    if (filteredAdvances.length === 0) {
+      showToast("No records found in this date range!", "error");
+      return;
+    }
+
+    const doc = new jsPDF('portrait');
+    doc.setFontSize(16);
+    doc.text(`Advance Khata Report`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Period: ${fromDate} to ${toDate}`, 14, 22);
+    doc.text(`Total Distributed: Rs ${totalAdvancesPaid.toLocaleString('en-IN')}`, 14, 28);
+
+    const headers = [['Date', 'Worker Name', 'Advance Amount (Rs)']];
+    const rows = filteredAdvances.map(adv => [adv.date, adv.workerName, adv.amount]);
+
+    doc.autoTable({
+      head: headers,
+      body: rows,
+      startY: 34,
+      headStyles: { fillColor: [79, 70, 229] }, // Indigo-600
+    });
+
+    doc.save(`Advance_Khata_${fromDate}_to_${toDate}.pdf`);
+    showToast("Ledger PDF Downloaded!", "success");
+  };
+
+  const downloadExcel = () => {
+    if (filteredAdvances.length === 0) {
+      showToast("No records found in this date range!", "error");
+      return;
+    }
+
+    const headers = ['Date', 'Worker Name', 'Advance Amount (Rs)'];
+    const rows = filteredAdvances.map(adv => [adv.date, adv.workerName, adv.amount]);
+    rows.push(['', 'TOTAL:', totalAdvancesPaid]); // Footer row for total
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Advance Ledger");
+    
+    XLSX.writeFile(wb, `Advance_Khata_${fromDate}_to_${toDate}.xlsx`);
+    showToast("Ledger Excel Downloaded!", "success");
+  };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-        <h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><HandCoins className="w-4 h-4 text-indigo-600" /> Cash Advance Khata</h3>
-        <div className="bg-rose-50 text-rose-700 font-black px-2 py-1 rounded-lg text-xs">Total: ₹{totalAdvancesPaid.toLocaleString('en-IN')}</div>
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
+      {/* HEADER WITH DATE FILTER & EXPORT BAR */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 pb-4 border-b border-slate-100">
+        <div>
+          <h3 className="font-black text-slate-950 text-sm flex items-center gap-2">
+            <HandCoins className="w-5 h-5 text-indigo-600" /> Cash Advance Khata
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Manage and export daily advances given to workers.</p>
+        </div>
+        
+        {/* Date Filter & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 w-full xl:w-auto">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">From</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">To</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-auto xl:ml-2 mt-4 xl:mt-0">
+            <button onClick={downloadPDF} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-sm">
+              <FileText className="w-3.5 h-3.5" /> PDF
+            </button>
+            <button onClick={downloadExcel} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-sm">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+            </button>
+          </div>
+        </div>
       </div>
 
-      <form onSubmit={handleAddAdvance} className="flex flex-col sm:flex-row gap-2 mb-4 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-        <select value={workerId} onChange={(e)=>setWorkerId(e.target.value)} className="flex-1 bg-white border border-slate-200 p-2 rounded-lg font-bold text-slate-800 text-xs focus:outline-none" required>
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+        <span className="text-xs font-black text-slate-500 uppercase">Filtered Total:</span>
+        <div className="bg-rose-100 text-rose-700 font-black px-3 py-1.5 rounded-lg text-sm shadow-sm border border-rose-200">
+          ₹{totalAdvancesPaid.toLocaleString('en-IN')}
+        </div>
+      </div>
+
+      {/* FORM SECTION */}
+      <form onSubmit={handleAddAdvance} className="flex flex-col sm:flex-row gap-2 bg-white p-3 rounded-xl border border-slate-200 shadow-3xs">
+        <select value={workerId} onChange={(e)=>setWorkerId(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 p-2 rounded-lg font-bold text-slate-800 text-xs focus:outline-none" required>
           <option value="">Select Worker...</option>
           {siteWorkers.map(w => <option key={w._id} value={w._id}>{w.name}</option>)}
         </select>
         <div className="relative w-full sm:w-44">
           <span className="absolute left-2.5 top-2 font-black text-slate-400 text-xs">₹</span>
-          <input type="number" placeholder="Amount" value={amount} onChange={(e)=>setAmount(e.target.value)} className="w-full bg-white border border-slate-200 pl-6 pr-2 py-2 rounded-lg font-bold text-slate-800 text-xs focus:outline-none" required />
+          <input type="number" placeholder="Amount" value={amount} onChange={(e)=>setAmount(e.target.value)} className="w-full bg-slate-50 border border-slate-200 pl-6 pr-2 py-2 rounded-lg font-bold text-slate-800 text-xs focus:outline-none" required />
         </div>
-        <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-indigo-500 shadow-2xs">Issue Cash</button>
+        <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-indigo-500 shadow-md">Issue Cash</button>
       </form>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-h-44 overflow-y-auto pr-1">
-        {advances.length === 0 ? <p className="text-slate-400 font-medium text-center py-4 col-span-full">No active advances distributed.</p> : advances.map(adv => (
-          <div key={adv._id} className="bg-amber-50/40 border border-amber-100 p-2.5 rounded-xl flex justify-between items-center shadow-3xs">
+      {/* LIST SECTION */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-56 overflow-y-auto pr-1">
+        {filteredAdvances.length === 0 ? (
+          <p className="text-slate-400 font-medium text-center py-6 col-span-full border border-dashed rounded-xl">No active advances in this date range.</p>
+        ) : filteredAdvances.map(adv => (
+          <div key={adv._id} className="bg-white border border-slate-200 p-3 rounded-xl flex justify-between items-center shadow-3xs hover:border-indigo-200 transition-colors">
             <div>
               <p className="font-bold text-slate-900 text-xs">{adv.workerName}</p>
-              <p className="text-[9px] text-slate-400 font-bold">{adv.date}</p>
+              <p className="text-[10px] text-slate-500 font-bold mt-0.5">{adv.date}</p>
             </div>
-            <span className="font-black text-rose-600 bg-white border border-rose-100 px-2 py-0.5 rounded-md text-xs">-₹{adv.amount}</span>
+            <span className="font-black text-rose-600 bg-rose-50 border border-rose-100 px-2 py-1 rounded-md text-xs">-₹{adv.amount}</span>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
 // ==========================================
 // 5. MILESTONE TASK BOARD (KANBAN)
 // ==========================================
@@ -840,7 +1073,7 @@ function MilestoneTaskBoard({ siteData, fetchSites }) {
 }
 
 // ==========================================
-// 6. MATERIAL & VENDOR MANAGER TAB
+// 6. MATERIAL & VENDOR MANAGER TAB (With Dynamic Export)
 // ==========================================
 function MaterialManager({ siteData, fetchSites }) {
   const { showToast } = useToast();
@@ -848,6 +1081,14 @@ function MaterialManager({ siteData, fetchSites }) {
   const [selectedMaterial, setSelectedMaterial] = useState('');
   const [ratePerPiece, setRatePerPiece] = useState('');
   const [quantity, setQuantity] = useState('');
+
+  // ✅ NAYA: Date Range State (Default: Pichle 7 din)
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const [materialDropdownItems, setMaterialDropdownItems] = useState(() => {
     const savedItems = localStorage.getItem('thekedaar_material_items');
@@ -861,7 +1102,19 @@ function MaterialManager({ siteData, fetchSites }) {
   }, [materialDropdownItems]);
 
   const siteMaterials = siteData.materials || [];
-  const totalSiteMaterialExpense = siteMaterials.reduce((sum, item) => sum + (item.cost || 0), 0);
+  
+  // ✅ NAYA: Filter materials based on date range
+  const filteredMaterials = siteMaterials.filter(mat => {
+    if (!mat.date) return true; // Agar purana record ho jisme date na ho
+    const matDate = new Date(mat.date);
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    return matDate >= start && matDate <= end;
+  });
+
+  // Total ab sirf us date-range ke materials ka nikalega
+  const totalFilteredExpense = filteredMaterials.reduce((sum, item) => sum + (item.cost || 0), 0);
   const autoTotalPrice = Number(ratePerPiece || 0) * Number(quantity || 0);
 
   const handleAddCustomItem = (e) => {
@@ -911,14 +1164,113 @@ function MaterialManager({ siteData, fetchSites }) {
     } catch(err) { showToast("Error deleting", "error"); }
   };
 
+  // ==========================================
+  // 🚀 EXPORT LOGIC (PDF & EXCEL) for Owner Billing
+  // ==========================================
+  const downloadPDF = () => {
+    if (filteredMaterials.length === 0) {
+      showToast("No records found in this date range!", "error");
+      return;
+    }
+
+    const doc = new jsPDF('portrait');
+    const siteName = siteData?.name || 'Site';
+    
+    doc.setFontSize(16);
+    doc.text(`Material & Expense Report: ${siteName}`, 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Billing Period: ${fromDate} to ${toDate}`, 14, 22);
+    doc.text(`Total Expense: Rs ${totalFilteredExpense.toLocaleString('en-IN')}`, 14, 28);
+
+    // Columns clear rakhne hain taaki Malik (Owner) ko easily samajh aaye
+    const headers = [['Date', 'Vendor / Supplier', 'Material', 'Rate', 'Qty', 'Total Cost']];
+    const rows = filteredMaterials.map(m => [
+      m.date, 
+      m.vendorName, 
+      m.materialType, 
+      `Rs ${m.ratePerPiece}`, 
+      m.quantity, 
+      `Rs ${m.cost}`
+    ]);
+
+    doc.autoTable({
+      head: headers,
+      body: rows,
+      startY: 34,
+      headStyles: { fillColor: [79, 70, 229] }, // Indigo theme
+    });
+
+    doc.save(`Material_Bill_${siteName.replace(/\s+/g, '_')}_${fromDate}_to_${toDate}.pdf`);
+    showToast("Bill PDF Downloaded!", "success");
+  };
+
+  const downloadExcel = () => {
+    if (filteredMaterials.length === 0) {
+      showToast("No records found in this date range!", "error");
+      return;
+    }
+
+    const siteName = siteData?.name || 'Site';
+    const headers = ['Date', 'Vendor / Supplier', 'Material Item', 'Rate (Rs)', 'Quantity', 'Total Cost (Rs)'];
+    
+    const rows = filteredMaterials.map(m => [
+      m.date, 
+      m.vendorName, 
+      m.materialType, 
+      m.ratePerPiece, 
+      m.quantity, 
+      m.cost
+    ]);
+    
+    // Grand Total sabse aakhiri row mein add karenge
+    rows.push(['', '', '', '', 'GRAND TOTAL:', totalFilteredExpense]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Material Bill");
+    
+    XLSX.writeFile(wb, `Material_Bill_${siteName.replace(/\s+/g, '_')}_${fromDate}_to_${toDate}.xlsx`);
+    showToast("Excel Bill Downloaded!", "success");
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+      {/* HEADER WITH DATE FILTER & EXPORT BAR */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 pb-4 border-b border-slate-100">
         <div>
-          <h3 className="font-black text-slate-950 text-sm flex items-center gap-2"><Truck className="w-4 h-4 text-indigo-600" /> Material & Vendor Expense Log</h3>
+          <h3 className="font-black text-slate-950 text-sm flex items-center gap-2">
+            <Truck className="w-5 h-5 text-indigo-600" /> Material & Vendor Bill Log
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Export this bill to show expenses to the Site Owner.</p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-100 text-indigo-700 font-black px-3 py-1.5 rounded-xl flex items-center gap-1 text-xs">
-          Total Material Cost: <IndianRupee className="w-3 h-3 ml-1" />{totalSiteMaterialExpense.toLocaleString('en-IN')}
+        
+        {/* Date Filter & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3 bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100/50 w-full xl:w-auto">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">From</label>
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-black text-indigo-900 uppercase">To</label>
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="bg-white border border-indigo-200 text-xs font-bold text-slate-700 px-2 py-1.5 rounded-lg focus:outline-none" />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-auto xl:ml-2 mt-4 xl:mt-0">
+            <button onClick={downloadPDF} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow-sm">
+              <FileText className="w-3.5 h-3.5" /> PDF Bill
+            </button>
+            <button onClick={downloadExcel} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-sm">
+              <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* FILTERED TOTAL SUMMARY */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+        <span className="text-xs font-black text-slate-500 uppercase">Filtered Bill Amount:</span>
+        <div className="bg-indigo-100 text-indigo-800 font-black px-4 py-1.5 rounded-lg text-sm shadow-sm border border-indigo-200 flex items-center">
+          <IndianRupee className="w-4 h-4 mr-1" /> {totalFilteredExpense.toLocaleString('en-IN')}
         </div>
       </div>
 
@@ -940,6 +1292,7 @@ function MaterialManager({ siteData, fetchSites }) {
         )}
       </div>
 
+      {/* ADD MATERIAL FORM */}
       <form onSubmit={handleAddMaterialRecord} className="bg-indigo-50/30 border border-indigo-100/60 p-4 rounded-xl space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
           <div>
@@ -973,12 +1326,13 @@ function MaterialManager({ siteData, fetchSites }) {
         </button>
       </form>
 
+      {/* FILTERED MATERIAL LIST */}
       <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-        {siteMaterials.length === 0 ? (
-          <p className="text-center text-slate-400 py-6 text-xs">No material logs added for this site yet.</p>
+        {filteredMaterials.length === 0 ? (
+          <p className="text-center text-slate-400 py-6 text-xs border border-dashed rounded-xl">No material logs found in this date range.</p>
         ) : (
-          siteMaterials.slice().reverse().map(mat => (
-            <div key={mat._id} className="flex justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-100 shadow-3xs">
+          filteredMaterials.slice().reverse().map(mat => (
+            <div key={mat._id} className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-slate-200 shadow-3xs hover:border-indigo-200 transition-colors">
               <div>
                 <h4 className="font-black text-slate-900 text-xs">{mat.vendorName}</h4>
                 <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
@@ -986,7 +1340,7 @@ function MaterialManager({ siteData, fetchSites }) {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="font-black text-slate-950 bg-white border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
+                <span className="font-black text-slate-950 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl text-xs">
                   ₹{(mat.cost || 0).toLocaleString('en-IN')}
                 </span>
                 <button onClick={() => handleDeleteMaterial(mat._id)} className="text-slate-300 hover:text-rose-600 p-1.5"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -998,7 +1352,6 @@ function MaterialManager({ siteData, fetchSites }) {
     </div>
   );
 }
-
 // ==========================================
 // 7. MALIK KA KHATA TAB & EXCEL EXPORT
 // ==========================================
