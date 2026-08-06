@@ -9,6 +9,11 @@ const cookieParser = require('cookie-parser'); // 👈 Yeh Naya hai!
 const authRoutes = require('./routes/authRoutes');
 const User = require('./models/User'); 
 
+// 🛡️ [SECURITY PACKAGES IMPORT]
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+
 const app = express();
 
 /// CORS Ko strict karna hoga (Varna cookies nahi chalengi)
@@ -45,6 +50,31 @@ mongoose.connect(process.env.MONGO_URI)
     }
   })
   .catch((err) => console.log('🔴 MongoDB Connection Error: ', err));
+
+  // ==========================================
+// 🛡️ SECURITY LAYER 2: MONGO SANITIZE (NoSQL Injection Protection)
+// Yeh kisi ko bhi input me '$' ya '.' bhejkar database hack karne se rokega
+// ==========================================
+app.use((req,res,next)=> {
+  if(req.body) req.body = mongoSanitize.sanitize(req.body);
+  if(req.params) req.params = mongoSanitize.sanitize(req.params);
+  next();
+});
+
+// ==========================================
+// 🛡️ SECURITY LAYER 3: RATE LIMITER (Global Bouncer for DDoS)
+// 15 Minute me 1 IP se max 100 requests (Refresh maar maar ke server down nahi kar payega koi)
+// ==========================================
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute ka window
+  max: 100, // Max 100 requests per IP
+  message: { 
+    success: false, 
+    message: "Bhai thoda aaram se! Boht saari requests aa gayi hain, 15 minute baad try karna." 
+  }
+});
+// Global bouncer ko poori app par laga diya
+app.use(globalLimiter);
 
 // 🔌 API ROUTES KO SERVER ME LINK KAREIN
 const userRoutes = require('./routes/userRoutes');
