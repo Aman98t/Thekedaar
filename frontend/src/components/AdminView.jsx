@@ -229,6 +229,27 @@ export default function AdminView({ currentUser }) {
     }
   };
 
+  // ✅ NAYA: Broadcast ko database se permanently hatane ka function
+  const handleClearBroadcast = async () => {
+    if (!window.confirm("Are you sure you want to stop and clear the current broadcast?")) return;
+
+    try {
+      // Backend ko DELETE request bhejenge
+      const response = await fetch(`${API_BASE_URL}/api/admin/broadcast`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        showToast("Broadcast stopped & cleared permanently!", "success");
+        setAnnouncement(''); // Form ka text bhi clear kar do
+      } else {
+        showToast("Error clearing broadcast", "error");
+      }
+    } catch (error) {
+      showToast("Server network error", "error");
+    }
+  };
+
   // ==========================================
   // 🔑 ADMIN: RESET CONTRACTOR PASSWORD
   // ==========================================
@@ -532,9 +553,20 @@ export default function AdminView({ currentUser }) {
                 />
               </div>
 
-              <button type="submit" className="w-full bg-slate-950 hover:bg-slate-900 text-white font-black p-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs">
-                <Radio className="w-3.5 h-3.5 text-amber-400" /> Dispatch In-App Announcement
-              </button>
+              {/* ✅ NAYA: Dispatch aur Clear Buttons ko ek sath laga diya */}
+              <div className="flex gap-2 mt-4">
+                <button type="submit" className="flex-1 bg-slate-950 hover:bg-slate-900 text-white font-black p-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs shadow-md">
+                  <Radio className="w-3.5 h-3.5 text-amber-400" /> Dispatch Announcement
+                </button>
+                
+                <button 
+                  type="button" 
+                  onClick={handleClearBroadcast} 
+                  className="bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-black px-4 py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 text-xs shadow-sm"
+                >
+                  <span className="text-rose-500 font-bold">X</span> Stop / Clear
+                </button>
+              </div>
             </form>
           </div>
 

@@ -100,6 +100,18 @@ router.post('/broadcast', async (req, res) => {
 });
 
 // ==========================================
+// 🛑 CLEAR / STOP ACTIVE BROADCAST (Admin Control)
+// ==========================================
+router.delete('/broadcast', async (req, res) => {
+  try {
+    // MongoDB se Broadcast collection ka saara data delete kar do
+    await Broadcast.deleteMany({});
+    res.status(200).json({ message: "All broadcasts cleared permanently" });
+  } catch (error) {
+    res.status(500).json({ message: "Error clearing broadcasts", error: error.message });
+  }
+}); 
+// ==========================================
 // 4. GET ACTIVE BROADCASTS (For Users to Fetch)
 // ==========================================
 router.get('/broadcasts', async (req, res) => {
