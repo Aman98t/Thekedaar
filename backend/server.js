@@ -16,10 +16,25 @@ const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
 
-/// CORS Ko strict karna hoga (Varna cookies nahi chalengi)
+// Allowed origins ki list banayein (Localhost + Vercel Production URL)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://thekedaar-wheat.vercel.app'
+];
+
+// CORS Ko strict karna hoga (Varna cookies nahi chalengi)
+// CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:5173', // 👈 Apne frontend ka exact URL likhna yahan (Vite default is 5173)
-  credentials: true // 👈 YEH BOHT ZAROORI HAI COOKIES KE LIYE
+  origin: function (origin, callback) {
+    // Postman ya server-to-server requests ke liye jahan origin undefined hota hai
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      return callback(new Error('CORS policy violation: This origin is not allowed.'), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true // 👈 Cookies ke liye zaroori hai
 }));
 
 app.use(express.json());
